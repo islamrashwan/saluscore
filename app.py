@@ -5,7 +5,7 @@ import streamlit as st
 import datetime
 import csv
 from pathlib import Path
-
+import streamlit.components.v1 as components
 
 st.markdown(
     """
@@ -112,6 +112,7 @@ def disclaimer_gate(disclaimer_brief: str,
     # --- Callbacks ---
     def _accept():
         st.session_state["accepted_disclaimer"] = True
+        st.session_state["_scroll_to_form_top_once"] = True  # ← add this line
         if log_to_csv:
             try:
                 with open("consent_log.csv", "a", newline="", encoding="utf-8") as f:
@@ -399,6 +400,10 @@ def render_footer():
 
 
 def main():
+    # --- TOP anchor + injector placeholder (no visual space) ---
+    st.markdown("<div id='page-top'></div>", unsafe_allow_html=True)
+    _scroll_injector = st.empty()
+
     schema = load_schema()
     app_meta = schema.get("app", {})
 
@@ -423,6 +428,38 @@ def main():
 
     # Gate (blocks below until accepted)
     disclaimer_gate(disclaimer_brief, disclaimer_full, owner="SaluSCORE™ Project Team", version="v0.1")
+
+    # After the gate returns (accepted), jump to the very top once
+    if st.session_state.pop("_scroll_to_form_top_once", False):
+        components.html(
+            """
+            <script>
+            (function () {
+            // Try a few times in case layout isn't ready yet
+            const d = window.parent.document;
+            function jump(tries) {
+                // Prefer the explicit top anchor
+                const anchor = d.querySelector('#page-top');
+                if (anchor && anchor.scrollIntoView) {
+                anchor.scrollIntoView({behavior: 'auto', block: 'start', inline: 'nearest'});
+                return;
+                }
+                // Fallback to the main scroll container
+                const main = d.querySelector('section.main');
+                if (main && main.scrollTo) { main.scrollTo({top: 0, left: 0, behavior: 'auto'}); return; }
+                // Final fallback
+                window.parent.scrollTo(0, 0);
+
+                if (tries < 20) setTimeout(() => jump(tries + 1), 50);
+            }
+            // kick off
+            setTimeout(() => jump(0), 0);
+            })();
+            </script>
+            """,
+            height=1,          # keep the iframe alive with a 1px footprint (no visible gap)
+            scrolling=False
+        )
 
     # ----- Build the form only after acceptance -----
     row = build_user_form(schema)
