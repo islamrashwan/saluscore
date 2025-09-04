@@ -7,27 +7,6 @@ import csv
 from pathlib import Path
 import streamlit.components.v1 as components
 
-st.markdown(
-    """
-    <style>
-    /* Style only the primary button (e.g., "I Accept and Proceed") */
-    button[kind="primary"] {
-        background-color: #3A4556 !important;
-        color: white !important;
-        font-weight: bold !important;
-        border-radius: 5px !important;
-        border: none !important;
-    }
-    button[kind="primary"]:hover {
-        background-color: #2c3442 !important;
-        color: white !important;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
-
 def disclaimer_gate(disclaimer_brief: str,
                     disclaimer_full: str,
                     owner="SaluSCORE™ Project Team",
@@ -291,9 +270,9 @@ def build_user_form(schema: dict):
         # 3) Submit controls INSIDE the form
         c1, c2 = st.columns(2)
         with c1:
-            submitted = st.form_submit_button("Analyze")
+            submitted = st.form_submit_button("Analyze", type="primary")
         with c2:
-            impute_clicked = st.form_submit_button("Analyze with missing values filled")
+            impute_clicked = st.form_submit_button("Analyze with missing values filled", type="primary")
     # ----------------- FORM END -----------------
 
     # After the form rerun, read flags and handle imputation click
@@ -358,7 +337,7 @@ def build_user_form(schema: dict):
             "The following required fields are empty and will be imputed during prediction: "
             + ", ".join(missing_required)
         )
-        st.info("Please fill the missing fields or click 'Analyze with missing values filled' inside the form.")
+        st.info("Please fill the missing fields or click 'Analyze with missing values filled' to impute missing values instead.")
         return None
 
     # If we’re here, either all required are present OR user confirmed imputation.
