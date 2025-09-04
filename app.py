@@ -50,7 +50,7 @@ def disclaimer_gate(disclaimer_brief: str,
     # Ensure flags exist
     st.session_state.setdefault("show_full_terms", False)
 
-    # --- Styles (unchanged) ---
+    # --- Card styles ---
     st.markdown("""
     <style>
     div[data-testid="stExpander"] {
@@ -91,7 +91,7 @@ def disclaimer_gate(disclaimer_brief: str,
     # --- Callbacks ---
     def _accept():
         st.session_state["accepted_disclaimer"] = True
-        st.session_state["_scroll_to_form_top_once"] = True  # ← add this line
+        st.session_state["_scroll_to_form_top_once"] = True
         if log_to_csv:
             try:
                 with open("consent_log.csv", "a", newline="", encoding="utf-8") as f:
@@ -103,7 +103,6 @@ def disclaimer_gate(disclaimer_brief: str,
         st.session_state["show_full_terms"] = True
 
     with st.expander("Terms of Use", expanded=True):
-        # text first
         text_to_show = disclaimer_full if st.session_state["show_full_terms"] else disclaimer_brief
         st.markdown(text_to_show)
 
@@ -164,11 +163,11 @@ def _num_step(decimals):
 def build_user_form(schema: dict):
     import pandas as pd
 
+    # Persisted flag: keep the prompt visible if user hasn’t fixed fields yet
+    show_missing_prompt = st.session_state.get("show_missing_prompt", False)
+
     fields = schema.get("fields", [])
     user_fields = [f for f in fields if f.get("source") == "user" and f.get("name") != "surgery"]
-
-    # Persisted UI flag to keep the prompt visible if user hasn’t fixed fields yet
-    show_missing_prompt = st.session_state.get("show_missing_prompt", False)
 
     inputs = {}
     invalid_fields = []
@@ -239,8 +238,13 @@ def build_user_form(schema: dict):
                         chosen = st.multiselect("Select any that apply", options, key=f"surg_{grp.get('title','grp')}")
                         surgeries_selected.extend(chosen)
 
-        # 3) Only one submit inside the form
-        submitted = st.form_submit_button("Analyze", type="primary")
+        # 3) Submit controls INSIDE the form (button + a placeholder below it)
+        c1, c2 = st.columns(2)
+        with c1:
+            submitted = st.form_submit_button("Analyze", type="primary", key="btn_analyze")
+        with c2:
+            pass
+        loading_below = st.empty()  # we'll write the info box here when analysis starts
     # ----------------- FORM END -----------------
 
     # Attach surgery so it isn't treated as missing
@@ -279,50 +283,45 @@ def build_user_form(schema: dict):
         )
     ]
 
-    # Placeholders to draw (and clear) the prompt
+    # Placeholders for the prompt outside the form
     prompt_box = st.empty()
     btn_box    = st.empty()
 
     intent = None
 
-    # If user clicked Analyze and there are missing required values -> show prompt + outside button
+    # Case 1: User clicked Analyze and there are MISSING required values
     if submitted and missing_required:
         with prompt_box:
-            st.warning(
-                "The following required fields are empty and will be imputed during prediction: "
-                + ", ".join(missing_required)
-            )
             st.error("Please fill the missing fields, or click the button below to impute missing values and continue.")
         with btn_box:
             if st.button("Analyze with Missing Values Filled", key="btn_impute_now", type="primary"):
                 intent = "analyze_with_imputation"
-                # clear UI immediately before proceeding
+                # Clear the prompt area and show loading info under the Analyze button
                 prompt_box.empty(); btn_box.empty()
+                loading_below.info("Loading results below…")
             else:
-                # keep prompt visible on next rerun
+                # keep prompt visible on next rerun; do NOT proceed
                 st.session_state["show_missing_prompt"] = True
                 return None
 
-    # If prompt was already shown from a previous Analyze (user didn't fix fields yet)
+    # Case 2: Prompt already visible from a previous Analyze (user hasn’t fixed fields yet)
     elif show_missing_prompt and missing_required and not submitted:
         with prompt_box:
-            st.warning(
-                "The following required fields are empty and will be imputed during prediction: "
-                + ", ".join(missing_required)
-            )
             st.error("Please fill the missing fields, or click the button below to impute missing values and continue.")
         with btn_box:
             if st.button("Analyze with Missing Values Filled", key="btn_impute_now", type="primary"):
                 intent = "analyze_with_imputation"
                 prompt_box.empty(); btn_box.empty()
+                loading_below.info("Loading results below…")
             else:
                 return None
 
-    # If no missing required and user clicked Analyze -> proceed normally
+    # Case 3: No missing required values and user clicked Analyze → proceed normally
     elif submitted and not missing_required:
         intent = "analyze"
+        loading_below.info("Loading results below…")
 
-    # Nothing to do yet
+    # If nothing to do yet
     if intent is None:
         return None
 
@@ -339,10 +338,10 @@ def build_user_form(schema: dict):
             if hi is not None:
                 inputs[name] = min(inputs[name], float(hi))
 
-    # Build row and return (your pipeline should impute when NaNs are present)
+    # Build row and return (your pipeline will impute NaNs when present)
     row = pd.DataFrame([inputs])
 
-    # Clear the “keep showing prompt” flag so it doesn’t stick above the results
+    # we've proceeded; no need to keep the “show prompt” flag
     st.session_state.pop("show_missing_prompt", None)
 
     return row
@@ -368,7 +367,7 @@ def main():
     schema = load_schema()
     app_meta = schema.get("app", {})
 
-    # ----- Header (visible while gate is open) -----
+    # ----- Header -----
     st.title(app_meta.get("title", "SaluSCORE-PED™ v0.1"))
     st.markdown(
         "<p style='font-size:16px; color:#3A4556;'>"
@@ -396,42 +395,32 @@ def main():
             """
             <script>
             (function () {
-            // Try a few times in case layout isn't ready yet
-            const d = window.parent.document;
-            function jump(tries) {
-                // Prefer the explicit top anchor
+              const d = window.parent.document;
+              function jump(tries) {
                 const anchor = d.querySelector('#page-top');
-                if (anchor && anchor.scrollIntoView) {
-                anchor.scrollIntoView({behavior: 'auto', block: 'start', inline: 'nearest'});
-                return;
-                }
-                // Fallback to the main scroll container
+                if (anchor && anchor.scrollIntoView) { anchor.scrollIntoView({behavior: 'auto', block: 'start', inline: 'nearest'}); return; }
                 const main = d.querySelector('section.main');
                 if (main && main.scrollTo) { main.scrollTo({top: 0, left: 0, behavior: 'auto'}); return; }
-                // Final fallback
                 window.parent.scrollTo(0, 0);
-
                 if (tries < 20) setTimeout(() => jump(tries + 1), 50);
-            }
-            // kick off
-            setTimeout(() => jump(0), 0);
+              }
+              setTimeout(() => jump(0), 0);
             })();
             </script>
             """,
-            height=1,          # keep the iframe alive with a 1px footprint (no visible gap)
+            height=1,
             scrolling=False
         )
 
     # ----- Build the form only after acceptance -----
     row = build_user_form(schema)
     if row is None:
-        render_footer()   # footer before analysis
+        render_footer()
         return
 
+    # --- run prediction & render results ---
     if HAS_HELPER:
-        # returns: proba, shap_top, traditional, fig
         result = predict_proba_and_shap(row, max_display=10)
-        # Backward-compat: older helper may return only 3 values
         if len(result) == 4:
             proba, shap_top, traditional, fig = result
         else:
@@ -447,7 +436,7 @@ def main():
 
     st.success(f"Predicted Mortality Risk: {proba*100:.2f}%")
 
-    if not traditional.empty:
+    if isinstance(traditional, pd.Series) and not traditional.empty:
         st.subheader("Traditional Risk Scores")
 
         label_map = {
@@ -458,7 +447,7 @@ def main():
             "stmort score": "STS-EACTS Mortality Score"
         }
 
-        # Format values as strings with the right precision
+        # Format values
         formatted = traditional.copy()
         if "rachs" in formatted:
             formatted["rachs"] = f"{int(round(formatted['rachs']))}"
@@ -480,18 +469,14 @@ def main():
     elif shap_top is not None:
         st.subheader("Top Feature Contributions (SHAP)")
 
-        # Load schema and build mapping from feature name → label
-        schema = load_schema()
+        # Replace internal feature names with user labels from schema
         fields = schema.get("fields", [])
         name_to_label = {f["name"]: f.get("label", f["name"]) for f in fields}
 
-        # Replace internal names with labels
         shap_top_display = shap_top.copy()
         shap_top_display.index = [
             name_to_label.get(feat, feat) for feat in shap_top_display.index
         ]
-
-        # Replace missing values with "imputed"
         shap_top_display = shap_top_display.fillna("imputed")
 
         st.dataframe(shap_top_display)
