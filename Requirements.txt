@@ -9,6 +9,6 @@ joblib==1.2.0              # load/save model & pipeline artifacts
 openpyxl==3.1.2            # Excel reading (pandas read_excel engine)
 
 # ML stack
-scikit-learn==1.2.2        # Pipeline, IterativeImputer (RF), Bagging
-xgboost==1.7.6             # base learners in your BaggingClassifier
+scikit-learn==1.6.1        # Pipeline, IterativeImputer (RF), Bagging
+xgboost==2.1.4             # base learners in your BaggingClassifier
 shap==0.42.1               # per-patient explanations

@@ -165,25 +165,24 @@ def build_user_form(schema: dict):
     import pandas as pd
 
     fields = schema.get("fields", [])
-    # render all user fields except surgery first; surgery comes later
     user_fields = [f for f in fields if f.get("source") == "user" and f.get("name") != "surgery"]
 
+    # Persisted UI flag to keep the prompt visible if user hasn’t fixed fields yet
+    show_missing_prompt = st.session_state.get("show_missing_prompt", False)
+
     inputs = {}
+    invalid_fields = []
 
     # ----------------- FORM START -----------------
-    invalid_fields = []
     with st.form("patient_input", clear_on_submit=False):
         inputs = {}
 
-        # 1) Render all user fields EXCEPT "surgery" first (so surgery can appear at the end)
+        # 1) Render all user fields EXCEPT "surgery" first
         for f in user_fields:
-            name    = f.get("name")
-            label   = f.get("label", name)
-            ftype   = f.get("type", "text")
-            widget  = f.get("widget", None)
-            min_v   = f.get("min", None)
-            max_v   = f.get("max", None)
-            decimals= f.get("decimals", 1)
+            name  = f.get("name")
+            label = f.get("label", name)
+            ftype = f.get("type", "text")
+            widget = f.get("widget", None)
 
             if ftype == "category":
                 options = f.get("options", [])
@@ -195,44 +194,28 @@ def build_user_form(schema: dict):
                 inputs[name] = val
 
             elif ftype in ("number", "integer"):
-                raw = st.text_input(
-                    label,
-                    value="",  # blank by default
-                    key=f"fld_{name}",
-                ).strip()
-
+                raw = st.text_input(label, value="", key=f"fld_{name}").strip()
                 if raw == "":
                     inputs[name] = None
                 else:
                     try:
                         val = int(raw) if ftype == "integer" else float(raw)
-                        lo = f.get("min", None)
-                        hi = f.get("max", None)
-
-                        # range check
+                        lo = f.get("min", None); hi = f.get("max", None)
                         if lo is not None and val < float(lo):
-                            st.error(f"{label}: must be ≥ {lo}.")
-                            inputs[name] = None
-                            invalid_fields.append(label)
+                            st.error(f"{label}: must be ≥ {lo}."); inputs[name] = None; invalid_fields.append(label)
                         elif hi is not None and val > float(hi):
-                            st.error(f"{label}: must be ≤ {hi}.")
-                            inputs[name] = None
-                            invalid_fields.append(label)
+                            st.error(f"{label}: must be ≤ {hi}."); inputs[name] = None; invalid_fields.append(label)
                         else:
                             inputs[name] = val
-
                     except ValueError:
                         st.error(f"Invalid input for {label}. Please enter a number.")
-                        inputs[name] = None
-                        invalid_fields.append(label)
+                        inputs[name] = None; invalid_fields.append(label)
 
         # 2) Planned Surgery LAST
         surgeries_selected = []
         surgery_field = next((f for f in fields if f.get("name") == "surgery"), None)
         if surgery_field:
             st.subheader(surgery_field.get("label", "Planned Surgery"))
-
-            # Added explanatory note
             st.markdown(
                 """
                 <div style="font-size: 0.9em; color: #555;">
@@ -242,83 +225,49 @@ def build_user_form(schema: dict):
                 </div>
                 """,
                 unsafe_allow_html=True
-            )            
-
+            )
             for grp in surgery_field.get("groups", []):
                 with st.expander(grp.get("title", "Group"), expanded=False):
                     options = grp.get("options", [])
-                    # options are [["key","Label"], ...]
                     if options and isinstance(options[0], list):
                         labels = [label for key, label in options]
                         keys   = [key   for key, label in options]
-                        chosen_labels = st.multiselect(
-                            "Select any that apply",
-                            labels,
-                            key=f"surg_{grp.get('title','grp')}",
-                        )
+                        chosen_labels = st.multiselect("Select any that apply", labels, key=f"surg_{grp.get('title','grp')}")
                         for lab in chosen_labels:
-                            idx = labels.index(lab)
-                            surgeries_selected.append(keys[idx])
+                            idx = labels.index(lab); surgeries_selected.append(keys[idx])
                     else:
-                        chosen = st.multiselect(
-                            "Select any that apply",
-                            options,
-                            key=f"surg_{grp.get('title','grp')}",
-                        )
+                        chosen = st.multiselect("Select any that apply", options, key=f"surg_{grp.get('title','grp')}")
                         surgeries_selected.extend(chosen)
 
-        # 3) Submit controls INSIDE the form
-        c1, c2 = st.columns(2)
-        with c1:
-            submitted = st.form_submit_button("Analyze", type="primary")
-        with c2:
-            impute_clicked = st.form_submit_button("Analyze with missing values filled", type="primary")
+        # 3) Only one submit inside the form
+        submitted = st.form_submit_button("Analyze", type="primary")
     # ----------------- FORM END -----------------
 
-    # After the form rerun, read flags and handle imputation click
-    confirm_impute = st.session_state.get("confirm_impute", False)
-    proceed_impute = st.session_state.get("proceed_impute", False)
-
-    if impute_clicked:
-        st.session_state["confirm_impute"] = True
-        st.session_state["proceed_impute"] = True
-        confirm_impute = True
-        proceed_impute = True
-
-    # Consider an "action" if user clicked Predict or confirmed imputation
-    action = submitted or proceed_impute
-    if not action:
-        return None
-
-    # Attach surgery early so it isn't treated as missing
+    # Attach surgery so it isn't treated as missing
     inputs["surgery"] = surgeries_selected
 
-    # ===== Priority Gates (only AFTER an action) =====
-
-    # (A) Must have at least one planned surgery
+    # ===== Hard blockers =====
     if not surgeries_selected:
-        st.error("Please select at least one planned surgery to proceed.")
-        st.session_state.pop("confirm_impute", None)
-        st.session_state.pop("proceed_impute", None)
+        if submitted or show_missing_prompt:
+            st.error("Please select at least one planned surgery to proceed.")
+        st.session_state.pop("show_missing_prompt", None)
         return None
 
-    # (B) Optional schema rule (e.g., require any of a whitelist like VSD)
     rule = schema.get("validation", {})
     required_any = rule.get("require_any_surgery_in", [])
     if required_any and not any(s in surgeries_selected for s in required_any):
-        st.error(rule.get("error_message", "Please select a required surgery option."))
-        st.session_state.pop("confirm_impute", None)
-        st.session_state.pop("proceed_impute", None)
+        if submitted or show_missing_prompt:
+            st.error(rule.get("error_message", "Please select a required surgery option."))
+        st.session_state.pop("show_missing_prompt", None)
         return None
 
-    # (C) Data-entry errors (letters in numeric fields, out-of-range)
     if invalid_fields:
-        st.error("Please correct these fields before predicting: " + ", ".join(invalid_fields))
-        st.session_state.pop("confirm_impute", None)
-        st.session_state.pop("proceed_impute", None)
+        if submitted or show_missing_prompt:
+            st.error("Please correct these fields before predicting: " + ", ".join(invalid_fields))
+        st.session_state.pop("show_missing_prompt", None)
         return None
 
-    # (D) Missing required (EXCLUDE surgery)
+    # Compute missing required (excluding surgery)
     missing_required = [
         f.get("label", f.get("name"))
         for f in fields
@@ -330,17 +279,53 @@ def build_user_form(schema: dict):
         )
     ]
 
-    # If there are missing required values and user hasn't confirmed yet → warn and stop.
-    # (No buttons here: submit buttons must live inside the form.)
-    if missing_required and not confirm_impute and not proceed_impute:
-        st.warning(
-            "The following required fields are empty and will be imputed during prediction: "
-            + ", ".join(missing_required)
-        )
-        st.info("Please fill the missing fields or click 'Analyze with missing values filled' to impute missing values instead.")
+    # Placeholders to draw (and clear) the prompt
+    prompt_box = st.empty()
+    btn_box    = st.empty()
+
+    intent = None
+
+    # If user clicked Analyze and there are missing required values -> show prompt + outside button
+    if submitted and missing_required:
+        with prompt_box:
+            st.warning(
+                "The following required fields are empty and will be imputed during prediction: "
+                + ", ".join(missing_required)
+            )
+            st.error("Please fill the missing fields, or click the button below to impute missing values and continue.")
+        with btn_box:
+            if st.button("Analyze with Missing Values Filled", key="btn_impute_now", type="primary"):
+                intent = "analyze_with_imputation"
+                # clear UI immediately before proceeding
+                prompt_box.empty(); btn_box.empty()
+            else:
+                # keep prompt visible on next rerun
+                st.session_state["show_missing_prompt"] = True
+                return None
+
+    # If prompt was already shown from a previous Analyze (user didn't fix fields yet)
+    elif show_missing_prompt and missing_required and not submitted:
+        with prompt_box:
+            st.warning(
+                "The following required fields are empty and will be imputed during prediction: "
+                + ", ".join(missing_required)
+            )
+            st.error("Please fill the missing fields, or click the button below to impute missing values and continue.")
+        with btn_box:
+            if st.button("Analyze with Missing Values Filled", key="btn_impute_now", type="primary"):
+                intent = "analyze_with_imputation"
+                prompt_box.empty(); btn_box.empty()
+            else:
+                return None
+
+    # If no missing required and user clicked Analyze -> proceed normally
+    elif submitted and not missing_required:
+        intent = "analyze"
+
+    # Nothing to do yet
+    if intent is None:
         return None
 
-    # If we’re here, either all required are present OR user confirmed imputation.
     # ---- rounding/clamping for present numeric values ----
     for f in [u for u in fields if u.get("source") == "user" and u.get("name") != "surgery"]:
         name = f.get("name")
@@ -354,14 +339,11 @@ def build_user_form(schema: dict):
             if hi is not None:
                 inputs[name] = min(inputs[name], float(hi))
 
-    # Build row and return (this triggers your prediction code)
+    # Build row and return (your pipeline should impute when NaNs are present)
     row = pd.DataFrame([inputs])
 
-    # Clean up confirmation flags AFTER we’ve produced a row
-    if st.session_state.get("confirm_impute"):
-        st.session_state.pop("confirm_impute", None)
-    if st.session_state.get("proceed_impute"):
-        st.session_state.pop("proceed_impute", None)
+    # Clear the “keep showing prompt” flag so it doesn’t stick above the results
+    st.session_state.pop("show_missing_prompt", None)
 
     return row
 
