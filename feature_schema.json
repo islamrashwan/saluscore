@@ -1,0 +1,577 @@
+{
+  "schema_version": "1.0.0",
+  "app": {
+    "title": "SaluSCORE-PED™ v0.1",
+    "disclaimer": "For research and educational use only. Not for clinical decision-making.",
+    "units_note": "All inputs must match units."
+  },
+  "feature_order": [
+    "gender",
+    "age",
+    "weight",
+    "spo2",
+    "downs",
+    "hb",
+    "hct",
+    "mcv",
+    "mch",
+    "mchc",
+    "plt",
+    "tlc",
+    "inr",
+    "ptt",
+    "creat",
+    "urea",
+    "alt",
+    "ast",
+    "rachs",
+    "abc level",
+    "abc score",
+    "stmort category",
+    "stmort score",
+    "cavc repair",
+    "rv infundibulectomy",
+    "tof rv to pa conduit"
+  ],
+  "validation": {
+    "require_any_surgery_in": [
+      "vsd direct",
+      "vsd patch",
+      "vsd multiple"
+    ],
+    "error_message": "This pilot study included patients with surgical VSD closure, as an isolated procedure or alongside more complex surgeries, please ensure you select a VSD closure option."
+  },
+  "lookups": {
+    "surgery_catalog_file": "Complexities_imputed.csv",
+    "sheet": null,
+    "columns": {
+      "key_surgery_name": "surgery",
+      "rachs": "rachs",
+      "abc_level": "abc level",
+      "abc_score": "abc score",
+      "stmort_category": "stmort category",
+      "stmort_score": "stmort score"
+    },
+    "aggregation_rules": {
+      "rachs": "max",
+      "abc_level": "max",
+      "abc_score": "max",
+      "stmort_category": "max",
+      "stmort_score": "max"
+    },
+    "flags_from_selection": {
+      "cavc repair": "cavc repair",
+      "rv infundibulectomy": "rv infundibulectomy",
+      "tof rv to pa conduit": "tof rv to pa conduit"
+    }
+  },
+  "fields": [
+    {
+      "name": "gender",
+      "label": "Gender",
+      "source": "user",
+      "type": "category",
+      "widget": "radio",
+      "options": [
+        "male",
+        "female"
+      ],
+      "required": true
+    },
+    {
+      "name": "age",
+      "label": "Age (years)",
+      "source": "user",
+      "type": "number",
+      "decimals": 1,
+      "min": 0.0,
+      "max": 17.9,
+      "unit": "years",
+      "required": true,
+      "round_to": 0.1
+    },
+    {
+      "name": "weight",
+      "label": "Weight (kg)",
+      "source": "user",
+      "type": "number",
+      "decimals": 1,
+      "min": 0.0,
+      "max": 100.0,
+      "unit": "kg",
+      "required": true,
+      "round_to": 0.1
+    },
+    {
+      "name": "spo2",
+      "label": "Oxygen Saturation (%)",
+      "source": "user",
+      "type": "integer",
+      "min": 0,
+      "max": 100,
+      "unit": "%",
+      "required": true,
+      "round_to": 0
+    },
+    {
+      "name": "downs",
+      "label": "Down Syndrome",
+      "source": "user",
+      "type": "category",
+      "widget": "radio",
+      "options": [
+        "no",
+        "yes"
+      ],
+      "required": true
+    },
+    {
+      "name": "hb",
+      "label": "Hemoglobin (g/dL)",
+      "source": "user",
+      "type": "number",
+      "decimals": 1,
+      "min": 3.0,
+      "max": 30.0,
+      "unit": "g/dL",
+      "required": true,
+      "round_to": 0.1
+    },
+    {
+      "name": "hct",
+      "label": "Hematocrit (%)",
+      "source": "user",
+      "type": "number",
+      "decimals": 1,
+      "min": 10.0,
+      "max": 75.0,
+      "unit": "%",
+      "required": true,
+      "round_to": 0.1
+    },
+    {
+      "name": "mcv",
+      "label": "Mean Corpuscular Volume (fL)",
+      "source": "user",
+      "type": "number",
+      "decimals": 1,
+      "min": 40.0,
+      "max": 150.0,
+      "unit": "fL",
+      "required": true,
+      "round_to": 0.1
+    },
+    {
+      "name": "mch",
+      "label": "Mean Corpuscular Hemoglobin (pg)",
+      "source": "user",
+      "type": "number",
+      "decimals": 1,
+      "min": 5.0,
+      "max": 60.0,
+      "unit": "pg",
+      "required": true,
+      "round_to": 0.1
+    },
+    {
+      "name": "mchc",
+      "label": "Mean Corpuscular Hemoglobin Concentration (g/dL)",
+      "source": "user",
+      "type": "number",
+      "decimals": 1,
+      "min": 20.0,
+      "max": 50.0,
+      "unit": "g/dL",
+      "required": true,
+      "round_to": 0.1
+    },
+    {
+      "name": "plt",
+      "label": "Platelets (×10^9/L)",
+      "source": "user",
+      "type": "integer",
+      "min": 10,
+      "max": 1500,
+      "unit": "×10^9/L",
+      "required": true,
+      "round_to": 0
+    },
+    {
+      "name": "tlc",
+      "label": "Total Leucocyte Count (×10^9/L)",
+      "source": "user",
+      "type": "number",
+      "decimals": 2,
+      "min": 0.1,
+      "max": 100.0,
+      "unit": "×10^9/L",
+      "required": true,
+      "round_to": 0.01
+    },
+    {
+      "name": "inr",
+      "label": "International Normalized Ratio",
+      "source": "user",
+      "type": "number",
+      "decimals": 2,
+      "min": 0.5,
+      "max": 15.0,
+      "required": true,
+      "round_to": 0.01
+    },
+    {
+      "name": "ptt",
+      "label": "Partial Thromboplastin Time (sec)",
+      "source": "user",
+      "type": "number",
+      "decimals": 1,
+      "min": 10.0,
+      "max": 200.0,
+      "unit": "sec",
+      "required": true,
+      "round_to": 0.1
+    },
+    {
+      "name": "creat",
+      "label": "Serum Creatinine (mg/dL)",
+      "source": "user",
+      "type": "number",
+      "decimals": 2,
+      "min": 0.1,
+      "max": 10.0,
+      "unit": "mg/dL",
+      "required": true,
+      "round_to": 0.01
+    },
+    {
+      "name": "urea",
+      "label": "Serum Urea (mg/dL)",
+      "source": "user",
+      "type": "integer",
+      "min": 1,
+      "max": 500,
+      "unit": "mg/dL",
+      "required": true,
+      "round_to": 0
+    },
+    {
+      "name": "alt",
+      "label": "Alanine Aminotransferase (U/L)",
+      "source": "user",
+      "type": "integer",
+      "min": 0.1,
+      "max": 1500.0,
+      "unit": "U/L",
+      "required": true,
+      "round_to": 0
+    },
+    {
+      "name": "ast",
+      "label": "Aspartate Aminotransferase (U/L)",
+      "source": "user",
+      "type": "integer",
+      "min": 0.1,
+      "max": 1500.0,
+      "unit": "U/L",
+      "required": true,
+      "round_to": 0
+    },
+    {
+      "name": "rachs",
+      "label": "RACHS-1 Category",
+      "source": "derived",
+      "type": "number",
+      "decimals": 0,
+      "derivation": "max of 'rachs' over selected surgeries from Complexities_imputed.csv"
+    },
+    {
+      "name": "abc level",
+      "label": "ABC Level",
+      "source": "derived",
+      "type": "number",
+      "decimals": 0,
+      "derivation": "max of 'abc level' over selected surgeries"
+    },
+    {
+      "name": "abc score",
+      "label": "ABC Score",
+      "source": "derived",
+      "type": "number",
+      "decimals": 1,
+      "derivation": "max of 'abc score' over selected surgeries"
+    },
+    {
+      "name": "stmort category",
+      "label": "STS-EACTS Mortality Category",
+      "source": "derived",
+      "type": "number",
+      "decimals": 0,
+      "derivation": "max of 'stmort category' over selected surgeries"
+    },
+    {
+      "name": "stmort score",
+      "label": "STS-EACTS Mortality Score",
+      "source": "derived",
+      "type": "number",
+      "decimals": 1,
+      "derivation": "max of 'stmort score' over selected surgeries"
+    },
+    {
+      "name": "cavc repair",
+      "label": "CAVC Repair Selected",
+      "source": "derived",
+      "type": "category",
+      "options": [
+        "no",
+        "yes"
+      ],
+      "derivation": "yes if 'cavc repair' selected, else no"
+    },
+    {
+      "name": "rv infundibulectomy",
+      "label": "RV Infundibulectomy Selected",
+      "source": "derived",
+      "type": "category",
+      "options": [
+        "no",
+        "yes"
+      ],
+      "derivation": "yes if 'rv infundibulectomy' selected"
+    },
+    {
+      "name": "tof rv to pa conduit",
+      "label": "TOF RV to PA Conduit Selected",
+      "source": "derived",
+      "type": "category",
+      "options": [
+        "no",
+        "yes"
+      ],
+      "derivation": "yes if 'tof rv to pa conduit' selected"
+    },
+    {
+      "name": "surgery",
+      "label": "Planned Surgery",
+      "source": "user",
+      "type": "multiselect",
+      "required": true,
+      "groups": [
+        {
+          "title": "Septal Defect Surgeries",
+          "options": [
+            [
+              "pfo direct",
+              "PFO Direct Closure"
+            ],
+            [
+              "asd direct",
+              "ASD Direct Closure"
+            ],
+            [
+              "asd patch",
+              "ASD Patch Closure"
+            ],
+            [
+              "asd partial closure",
+              "ASD Partial Closure"
+            ],
+            [
+              "asd creation",
+              "ASD Creation"
+            ],
+            [
+              "as fenestration",
+              "Atrial Septal Fenestration"
+            ],
+            [
+              "vsd direct",
+              "VSD Direct Closure"
+            ],
+            [
+              "vsd patch",
+              "VSD Patch Closure"
+            ],
+            [
+              "vsd multiple",
+              "Multiple VSDs Patch Closure"
+            ],
+            [
+              "vs fenestration",
+              "Ventricular Septal Fenestration"
+            ],
+            [
+              "cavc repair",
+              "Complete Atrioventricular Canal Repair"
+            ]
+          ]
+        },
+        {
+          "title": "Pulmonary & Systemic Venous Anomalies",
+          "options": [
+            [
+              "papvr",
+              "Partial Anomalous Pulmonary Venous Return Repair"
+            ],
+            [
+              "tapvr",
+              "Total Anomalous Pulmonary Venous Return Repair"
+            ],
+            [
+              "cor triatriatum repair",
+              "Cor Triatriatum Repair"
+            ]
+          ]
+        },
+        {
+          "title": "Outflow Tract & Complex Repairs",
+          "options": [
+            [
+              "dcrv repair",
+              "Double-Chambered Right Ventricle Repair"
+            ],
+            [
+              "sam resection",
+              "Subaortic Membrane Resection"
+            ],
+            [
+              "rv infundibulectomy",
+              "Right Ventricular Infundibulectomy"
+            ],
+            [
+              "tof rv to pa conduit",
+              "TOF Repair with Right Ventricle to Pulmonary Artery Conduit"
+            ],
+            [
+              "tof without ventriculotomy",
+              "TOF Repair without Ventriculotomy"
+            ],
+            [
+              "tof nontransannular patch",
+              "TOF Repair with Non-Transannular Patch"
+            ],
+            [
+              "tof transannular patc",
+              "TOF Repair with Transannular Patch"
+            ],
+            [
+              "dorv repair",
+              "Double Outlet Right Ventricle Repair"
+            ],
+            [
+              "rastelli operation",
+              "Rastelli Operation"
+            ],
+            [
+              "unifocalization",
+              "Unifocalization"
+            ],
+            [
+              "mapcas occlusion",
+              "MAPCAs Occlusion"
+            ],
+            [
+              "rv to pa conduit",
+              "Right Ventricle to Pulmonary Artery Conduit"
+            ]
+          ]
+        },
+        {
+          "title": "Valve Procedures",
+          "options": [
+            [
+              "pv valvuplasty",
+              "Pulmonary Valvuloplasty"
+            ],
+            [
+              "pv replacement",
+              "Pulmonary Valve Replacement"
+            ],
+            [
+              "tv valvuplasty",
+              "Tricuspid Valvuloplasty"
+            ],
+            [
+              "mv valvuplasty",
+              "Mitral Valvuloplasty"
+            ],
+            [
+              "av valvuplasty",
+              "Aortic Valvuloplasty"
+            ],
+            [
+              "av replacement",
+              "Aortic Valve Replacement"
+            ]
+          ]
+        },
+        {
+          "title": "Great Vessels & PDA",
+          "options": [
+            [
+              "pda ligation",
+              "PDA Ligation"
+            ],
+            [
+              "pa debanding",
+              "Pulmonary Artery Debanding"
+            ],
+            [
+              "shunt takedown",
+              "Shunt Takedown"
+            ],
+            [
+              "mpa patch",
+              "Main Pulmonary Artery Patch Augmentation"
+            ],
+            [
+              "lpa patch",
+              "Left Pulmonary Artery Patch augmentation"
+            ],
+            [
+              "rpa patch",
+              "Right Pulmonary Artery Patch augmentation"
+            ],
+            [
+              "pa aneurysm repair",
+              "Pulmonary Artery Aneurysm Repair"
+            ],
+            [
+              "aortic aneurysm repair",
+              "Aortic Aneurysm Repair"
+            ],
+            [
+              "coa repair extended",
+              "Repair of Coarctation of the Aorta with Resection with Extended End-to-End Anastomosis"
+            ],
+            [
+              "interrupted aortic arch repair",
+              "Interrupted Aortic Arch Repair"
+            ],
+            [
+              "vascular ring division",
+              "Vascular Ring Division"
+            ]
+          ]
+        },
+        {
+          "title": "Other",
+          "options": [
+            [
+              "permanent pacemaker",
+              "Permanent Pacemaker Insertion"
+            ],
+            [
+              "arcapa",
+              "Anomalous Right Coronary Artery from the Pulmonary Artery Repair"
+            ]
+          ]
+        }
+      ]
+    }
+  ],
+  "notes": [
+    "All derived fields are computed server-side based on the selected surgeries and lookup table.",
+    "If multiple surgeries are selected, aggregation uses 'max' for RACHS/ABC/STS-Mortality.",
+    "Server must still validate bounds, types, and required fields even if client-side validation passes."
+  ]
+}

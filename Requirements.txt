@@ -1,0 +1,14 @@
+# Core app & UI
+streamlit==1.28.2          # app UI (used in app.py)
+matplotlib==3.7.1          # plotting for SHAP bar chart
+
+# Data & utilities
+pandas==1.5.3              # DataFrame IO/manipulation
+numpy==1.24.4              # numerical backbone
+joblib==1.2.0              # load/save model & pipeline artifacts
+openpyxl==3.1.2            # Excel reading (pandas read_excel engine)
+
+# ML stack
+scikit-learn==1.2.2        # Pipeline, IterativeImputer (RF), Bagging
+xgboost==1.7.6             # base learners in your BaggingClassifier
+shap==0.42.1               # per-patient explanations
