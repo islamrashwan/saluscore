@@ -267,8 +267,6 @@ def predict_proba_and_shap(row: pd.DataFrame, max_display=10):
 
     data_values = [pick_value(f) for f in feats]
     feature_labels = [name_to_label.get(f, f) for f in feats]
-    # original user inputs – to decide if "(imputed)" tag is needed
-    imputed_flags = [pd.isna(row.iloc[0].get(f, np.nan)) for f in feats]
 
     # build explanation and plot
     explanation = shap.Explanation(
@@ -280,21 +278,6 @@ def predict_proba_and_shap(row: pd.DataFrame, max_display=10):
     fig = plt.figure()
     shap.plots.bar(explanation, max_display=max_display, show=False)
     plt.title("Top Factors Influencing the Risk Estimate")
-
-    # add a grey "(imputed)" *near the number* (not in the label to avoid overlap)
-    ax = plt.gca()
-    xmin, xmax = ax.get_xlim()
-    # this offset controls where the grey tag appears relative to the left edge;
-    # increase if it sits too close to the plot border; decrease if it bumps into labels
-    x_hint = xmin + 0.12 * (xmax - xmin)
-
-    for y, was_imputed in zip(ax.get_yticks(), imputed_flags):
-        if was_imputed:
-            ax.text(
-                x_hint, y, "(imputed)",
-                va="center", ha="left",
-                color="#6B7280", fontsize=plt.rcParams['font.size'] * 0.9
-            )
 
 
     # --- 6) Traditional derived scores from de-normalized frame ---
