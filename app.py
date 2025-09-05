@@ -7,6 +7,10 @@ import csv
 from pathlib import Path
 import streamlit.components.v1 as components
 
+# Constants
+# Probability threshold for class 1 (mortality) chosen from Youden's index
+DECISION_THRESHOLD = 0.1275
+
 def disclaimer_gate(disclaimer_brief: str,
                     disclaimer_full: str,
                     owner="SaluSCORE™ Project Team",
@@ -420,6 +424,7 @@ def main():
 
     # --- run prediction & render results ---
     if HAS_HELPER:
+        # Your helper already returns calibrated probability + SHAP info
         result = predict_proba_and_shap(row, max_display=10)
         if len(result) == 4:
             proba, shap_top, traditional, fig = result
@@ -427,14 +432,26 @@ def main():
             proba, shap_top, traditional = result
             fig = None
     else:
-        st.warning("Running without SHAP helper (predict_and_explain.py not importable).")
+        # Fallback: use the saved pipeline directly
         pipe = load_pipeline()
-        proba = float(pipe.predict_proba(row)[:, 1])
+        proba = float(pipe.predict_proba(row)[:, 1])  # calibrated prob of class 1
         shap_top = None
         traditional = pd.Series(dtype=float)
         fig = None
 
-    st.success(f"Predicted Mortality Risk: {proba*100:.2f}%")
+    # ---- convert probability to class with your tuned threshold ----
+    label = 1 if proba >= DECISION_THRESHOLD else 0
+    label_text = "**High-risk**" if label == 1 else "**Not high-risk**"
+
+    # Show the classification first
+    if label == 1:
+        st.error(f"Risk classification: {label_text}")
+    else:
+        st.success(f"Risk classification: {label_text}")
+
+    # Optional transparency: show the underlying probability & threshold
+    st.caption(f"Estimated risk probability: {proba*100:.2f}%, High-risk threshold: {DECISION_THRESHOLD*100:.2f}%")
+
 
     if isinstance(traditional, pd.Series) and not traditional.empty:
         st.subheader("Traditional Risk Scores")
