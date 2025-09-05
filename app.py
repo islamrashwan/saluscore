@@ -15,7 +15,7 @@ def disclaimer_gate(disclaimer_brief: str,
                     disclaimer_full: str,
                     owner="SaluSCORE™ Project Team",
                     version="v0.1",
-                    log_to_csv=True) -> bool:
+                    log_to_csv=False) -> bool:
     """
     Show brief terms first; on 'Read Full Terms of Use' swap to full text.
     Block app until 'I Accept and Proceed' is pressed, then hide permanently.
@@ -453,38 +453,84 @@ def main():
     st.caption(f"Estimated risk probability: {proba*100:.2f}%, High-risk threshold: {DECISION_THRESHOLD*100:.2f}%")
 
 
+    # ========= Traditional Risk Scores (with High-risk column) =========
     if isinstance(traditional, pd.Series) and not traditional.empty:
         st.subheader("Traditional Risk Scores")
 
+        # 1) High-risk thresholds (from your Youden table)
+        TRAD_THRESHOLDS = {
+            "rachs": 3,
+            "abc level": 3,
+            "abc score": 7.78,
+            "stmort category": 2.20,
+            "stmort score": 0.5,
+        }
+
+        # 2) Pretty labels for the left column
         label_map = {
             "rachs": "Risk Adjustment for Congenital Heart Surgery (RACHS-1)",
             "abc level": "Aristotle Basic Complexity (ABC) Level",
             "abc score": "Aristotle Basic Complexity (ABC) Score",
             "stmort category": "STS-EACTS Mortality Category",
-            "stmort score": "STS-EACTS Mortality Score"
+            "stmort score": "STS-EACTS Mortality Score",
         }
 
-        # Format values
-        formatted = traditional.copy()
-        if "rachs" in formatted:
-            formatted["rachs"] = f"{int(round(formatted['rachs']))}"
-        if "abc level" in formatted:
-            formatted["abc level"] = f"{int(round(formatted['abc level']))}"
-        if "stmort category" in formatted:
-            formatted["stmort category"] = f"{int(round(formatted['stmort category']))}"
-        if "abc score" in formatted:
-            formatted["abc score"] = f"{formatted['abc score']:.1f}"
-        if "stmort score" in formatted:
-            formatted["stmort score"] = f"{formatted['stmort score']:.1f}"
+        # 3) Prepare display values (same formatting you had)
+        raw = traditional.copy()
+        display_vals = {}
 
-        trad_display = formatted.rename(index=label_map)
-        st.table(trad_display.to_frame(name="Value"))
+        for k in ("rachs", "abc level", "stmort category"):
+            if k in raw and pd.notnull(raw[k]):
+                display_vals[k] = f"{int(round(raw[k]))}"
+        if "abc score" in raw and pd.notnull(raw["abc score"]):
+            display_vals["abc score"] = f"{float(raw['abc score']):.1f}"
+        if "stmort score" in raw and pd.notnull(raw["stmort score"]):
+            display_vals["stmort score"] = f"{float(raw['stmort score']):.1f}"
+        # fall back to raw value if not formatted above
+        for k, v in raw.items():
+            display_vals.setdefault(k, v)
+
+        # 4) Build: Score | Value | Risk
+        rows = []
+        for key, thr in TRAD_THRESHOLDS.items():
+            if key in raw and pd.notnull(raw[key]):
+                val = float(raw[key])
+                risk = "High-risk" if val >= thr else "Not high-risk"
+                rows.append({
+                    "Score": label_map.get(key, key),
+                    "Value": display_vals.get(key, val),
+                    "Risk": risk,
+                })
+
+        trad_df = pd.DataFrame(rows, columns=["Score", "Value", "Risk"])
+
+        # 5) Color the Risk column like Streamlit success/error
+        def risk_style(cell):
+            s = str(cell).lower()
+            if s == "high-risk":
+                # error-like (red)
+                return "background-color:#FDECEA;color:#7A0C2E;font-weight:600;"
+            else:
+                # success-like (green)
+                return "background-color:#ECFDF5;color:#065F46;font-weight:600;"
+
+        styled = trad_df.style.applymap(risk_style, subset=["Risk"]).hide(axis="index")
+        st.table(styled)
+
+        # 6) Brief thresholds note under the table
+        st.caption(
+            "High-risk thresholds used: "
+            "RACHS-1 ≥ 3, ABC Level ≥ 3, ABC Score ≥ 7.78, "
+            "STS-EACTS Mortality Category ≥ 2.20, STS-EACTS Mortality Score ≥ 0.5."
+        )
+
+
 
     if fig is not None:
-        st.subheader("Top Feature Contributions (SHAP)")
+        st.subheader("Top Feature Contributions")
         st.pyplot(fig, clear_figure=True)
     elif shap_top is not None:
-        st.subheader("Top Feature Contributions (SHAP)")
+        st.subheader("Top Feature Contributions")
 
         # Replace internal feature names with user labels from schema
         fields = schema.get("fields", [])
