@@ -189,12 +189,19 @@ def build_user_form(schema: dict):
 
             if ftype == "category":
                 options = f.get("options", [])
+                # If you want to *force* a choice, set index=None (shows no default selection):
+                # index = None if options else None
                 index = 0 if options else None
                 if widget == "radio":
                     val = st.radio(label, options, index=index, horizontal=True, key=f"fld_{name}")
                 else:
                     val = st.selectbox(label, options, index=index, key=f"fld_{name}")
-                inputs[name] = val
+
+                # Treat “unknown” for gender/downs as missing (so required check fails and imputation can run)
+                if name in ("gender", "downs") and isinstance(val, str) and val.strip().lower() == "unknown":
+                    inputs[name] = None
+                else:
+                    inputs[name] = val
 
             elif ftype in ("number", "integer"):
                 raw = st.text_input(label, value="", key=f"fld_{name}").strip()
@@ -296,7 +303,13 @@ def build_user_form(schema: dict):
     # Case 1: User clicked Analyze and there are MISSING required values
     if submitted and missing_required:
         with prompt_box:
-            st.error("Please fill the missing fields, or click the button below to impute missing values and continue.")
+            # Build a bullet list once
+            missing_bullets = "\n".join(f"- {x}" for x in missing_required)
+            msg = (
+                "Please fill the missing fields, or click the button below to impute missing values and continue."
+                + "\n\n**Missing fields:**\n" + missing_bullets
+            )
+            st.error(msg)
         with btn_box:
             if st.button("Analyze with Missing Values Filled", key="btn_impute_now", type="primary"):
                 intent = "analyze_with_imputation"
@@ -311,7 +324,13 @@ def build_user_form(schema: dict):
     # Case 2: Prompt already visible from a previous Analyze (user hasn’t fixed fields yet)
     elif show_missing_prompt and missing_required and not submitted:
         with prompt_box:
-            st.error("Please fill the missing fields, or click the button below to impute missing values and continue.")
+            # Build a bullet list once
+            missing_bullets = "\n".join(f"- {x}" for x in missing_required)
+            msg = (
+                "Please fill the missing fields, or click the button below to impute missing values and continue."
+                + "\n\n**Missing fields:**\n" + missing_bullets
+            )
+            st.error(msg)
         with btn_box:
             if st.button("Analyze with Missing Values Filled", key="btn_impute_now", type="primary"):
                 intent = "analyze_with_imputation"
@@ -462,7 +481,7 @@ def main():
             "rachs": 3,
             "abc level": 3,
             "abc score": 7.78,
-            "stmort category": 2.20,
+            "stmort category": 3,
             "stmort score": 0.5,
         }
 
@@ -521,16 +540,15 @@ def main():
         st.caption(
             "High-risk thresholds used: "
             "RACHS-1 ≥ 3, ABC Level ≥ 3, ABC Score ≥ 7.78, "
-            "STS-EACTS Mortality Category ≥ 2.20, STS-EACTS Mortality Score ≥ 0.5."
+            "STS-EACTS Mortality Category ≥ 3, STS-EACTS Mortality Score ≥ 0.5."
         )
 
 
-
     if fig is not None:
-        st.subheader("Top Feature Contributions")
+        st.subheader("Top Factors Influencing the Risk Estimate")
         st.pyplot(fig, clear_figure=True)
     elif shap_top is not None:
-        st.subheader("Top Feature Contributions")
+        st.subheader("Top Factors Influencing the Risk Estimate")
 
         # Replace internal feature names with user labels from schema
         fields = schema.get("fields", [])

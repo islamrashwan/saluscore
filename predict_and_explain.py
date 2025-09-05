@@ -7,16 +7,99 @@ import joblib
 import shap
 import numpy as np
 import pandas as pd
+import json
 import matplotlib.pyplot as plt
 from sklearn.calibration import CalibratedClassifierCV
 from sklearn.pipeline import Pipeline
 from sklearn.ensemble import BaggingClassifier
+from sklearn.compose import ColumnTransformer
+from sklearn.impute import SimpleImputer
 from salu_pipeline_components import (
     SurgeryDeriver, BinaryEncoder, IterativeImputerWrapper,
     RoundingTransformer, PreFittedScaler, ColumnOrderEnforcer
 )
+    
 
 PIPELINE_PKL = "saluSCORE_ped_pipeline.pkl"
+
+def get_imputed_raw_values(pipe: Pipeline, row: pd.DataFrame,
+                           numeric_block_names=("num", "numeric", "numerical"),
+                           imputer_step_name="imputer") -> dict:
+    """
+    Returns {feature_name: value_used_by_model_in_raw_units} for the given single-row DataFrame.
+    If a value was missing in `row`, it is replaced by the number produced by the numeric imputer.
+    Works for a Pipeline that contains a ColumnTransformer with a numeric pipeline
+    that has an 'imputer' step (SimpleImputer/IterativeImputer).
+    Falls back to the original row values if the structure isn't found.
+    """
+    # start with the original input values
+    out = row.iloc[0].to_dict().copy()
+
+    # find the ColumnTransformer inside the pipeline
+    pre = None
+    if isinstance(pipe, Pipeline):
+        for _, step in pipe.named_steps.items():
+            if isinstance(step, ColumnTransformer):
+                pre = step
+                break
+            # some pipelines: a 'preprocess' step is itself a Pipeline
+            if isinstance(step, Pipeline):
+                for __, sub in step.named_steps.items():
+                    if isinstance(sub, ColumnTransformer):
+                        pre = sub
+                        break
+            if pre is not None:
+                break
+    elif isinstance(pipe, ColumnTransformer):
+        pre = pipe
+
+    if pre is None:
+        return out  # can't locate preprocessing; return inputs as-is
+
+    # find the numeric transformer + its columns
+    num_name = None
+    num_cols = None
+    num_pipe = None
+
+    # try fitted 'transformers_' first, then the declared 'transformers'
+    for name, transformer, cols in getattr(pre, "transformers_", getattr(pre, "transformers", [])):
+        if name in numeric_block_names:
+            num_name = name
+            num_cols = list(cols) if not isinstance(cols, slice) else list(row.columns[cols])
+            num_pipe = transformer
+            break
+
+    if num_pipe is None or num_cols is None:
+        return out
+
+    # get the imputer step (pipeline or bare imputer)
+    imputer = None
+    if isinstance(num_pipe, Pipeline):
+        if imputer_step_name in num_pipe.named_steps and isinstance(num_pipe.named_steps[imputer_step_name], (SimpleImputer, )):
+            imputer = num_pipe.named_steps[imputer_step_name]
+    elif isinstance(num_pipe, (SimpleImputer, )):
+        imputer = num_pipe
+
+    if imputer is None:
+        # could be IterativeImputer etc.; try attribute presence instead of type
+        if isinstance(num_pipe, Pipeline) and hasattr(num_pipe, "named_steps") and imputer_step_name in num_pipe.named_steps:
+            imputer = num_pipe.named_steps[imputer_step_name]
+        else:
+            return out
+
+    # run the imputer only on numeric columns in raw scale
+    Xn = row[num_cols]
+    try:
+        Xn_imp = pd.DataFrame(imputer.transform(Xn), columns=num_cols, index=row.index)
+    except Exception:
+        # some imputers require fit; if not fitted, bail out gracefully
+        return out
+
+    for c in num_cols:
+        if pd.isna(out.get(c)):
+            out[c] = float(Xn_imp.loc[row.index[0], c])
+
+    return out
 
 
 def _unwrap_for_shap(model):
@@ -156,32 +239,62 @@ def predict_proba_and_shap(row: pd.DataFrame, max_display=10):
     }).sort_values("shap", key=lambda s: s.abs(), ascending=False)
     shap_top = shap_df.head(max_display)
 
-    # --- 5) In-memory SHAP bar figure (use JSON labels + mark imputed) ---
-    import json
-
-    # map internal feature names -> human labels from feature_schema.json
+    # --- 5) SHAP bar figure: single value; "(imputed)" drawn in grey next to the value ---
+    # map internal names -> human labels
     with open("feature_schema.json", "r", encoding="utf-8") as f:
         schema_json = json.load(f)
     name_to_label = {fld["name"]: fld.get("label", fld["name"]) for fld in schema_json.get("fields", [])}
 
-    # Build display names for the left y-axis: label, and note if imputed
-    display_names = []
-    for feat in shap_top["feature"].values:
-        label = name_to_label.get(feat, feat)
-        v = display_vals.get(feat, np.nan)  # value shown on the left ("v = label")
-        if pd.isna(v):
-            label = f"{label} (imputed)"
-        display_names.append(label)
+    # features (order as in shap_top)
+    feats = list(shap_top["feature"].values)
 
+    # values to show (prefer post-imputation+rounding from Xr)
+    def pick_value(feat):
+        # 1) value after pipeline imputer + rounding
+        if feat in Xr.columns and pd.notna(Xr.iloc[0][feat]):
+            return float(Xr.iloc[0][feat])
+        # 2) fallback: imputer-only helper (raw)
+        if "get_imputed_raw_values" in globals():
+            v_used = get_imputed_raw_values(pipe, row).get(feat, np.nan)
+            if pd.notna(v_used):
+                return float(v_used)
+        # 3) fallback: value column carried with shap_top
+        try:
+            v = shap_top.loc[shap_top["feature"] == feat, "value"].values[0]
+            return float(v) if pd.notna(v) else np.nan
+        except Exception:
+            return np.nan
+
+    data_values = [pick_value(f) for f in feats]
+    feature_labels = [name_to_label.get(f, f) for f in feats]
+    # original user inputs – to decide if "(imputed)" tag is needed
+    imputed_flags = [pd.isna(row.iloc[0].get(f, np.nan)) for f in feats]
+
+    # build explanation and plot
     explanation = shap.Explanation(
         values=shap_top["shap"].values,
         base_values=base_value,
-        data=shap_top["value"].values,        # the numeric values shown before '='
-        feature_names=np.array(display_names)  # human labels on the left
+        data=np.array(data_values),
+        feature_names=np.array(feature_labels)
     )
     fig = plt.figure()
     shap.plots.bar(explanation, max_display=max_display, show=False)
-    plt.title("Top Feature Contributions")
+    plt.title("Top Factors Influencing the Risk Estimate")
+
+    # add a grey "(imputed)" *near the number* (not in the label to avoid overlap)
+    ax = plt.gca()
+    xmin, xmax = ax.get_xlim()
+    # this offset controls where the grey tag appears relative to the left edge;
+    # increase if it sits too close to the plot border; decrease if it bumps into labels
+    x_hint = xmin + 0.12 * (xmax - xmin)
+
+    for y, was_imputed in zip(ax.get_yticks(), imputed_flags):
+        if was_imputed:
+            ax.text(
+                x_hint, y, "(imputed)",
+                va="center", ha="left",
+                color="#6B7280", fontsize=plt.rcParams['font.size'] * 0.9
+            )
 
 
     # --- 6) Traditional derived scores from de-normalized frame ---

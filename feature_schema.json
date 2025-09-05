@@ -73,6 +73,7 @@
       "type": "category",
       "widget": "radio",
       "options": [
+        "unknown",
         "male",
         "female"
       ],
@@ -120,6 +121,7 @@
       "type": "category",
       "widget": "radio",
       "options": [
+        "unknown",
         "no",
         "yes"
       ],
