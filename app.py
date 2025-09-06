@@ -32,6 +32,22 @@ def load_pipeline():
     return joblib.load(PIPELINE_PATH)
 
 
+def reset_calculator_state():
+    """Clear patient input + UI flags but keep page routing and disclaimer acceptance."""
+    keep = {"page", "accepted_disclaimer"}
+    for k in list(st.session_state.keys()):
+        if k in keep:
+            continue
+        # form field keys and UI flags used in this app
+        if (
+            k.startswith("fld_")           # text/radio/select inputs
+            or k.startswith("surg_")       # surgery multiselects per group
+            or k.startswith("btn_")        # analyze / impute buttons
+            or k in {"show_missing_prompt", "_scroll_to_form_top_once"}
+        ):
+            del st.session_state[k]
+
+
 def disclaimer_gate(disclaimer_brief: str,
                     disclaimer_full: str,
                     owner="SaluSCORE™ Project Team",
@@ -426,6 +442,12 @@ def show_calculator():
         shap_top_display.index = [name_to_label.get(feat, feat) for feat in shap_top_display.index]
         shap_top_display = shap_top_display.fillna("")  # no "(imputed)" text
         st.dataframe(shap_top_display)
+
+    st.divider()
+    if st.button("Reset", type="primary"):
+        reset_calculator_state()
+        st.session_state["page"] = "calculator"  # ensure we land back on Calculator
+        st.rerun()
 
     render_footer()
 
