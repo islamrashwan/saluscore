@@ -1,5 +1,3 @@
-# NEW SHAP BRANCH
-
 import json
 import joblib
 import pandas as pd
@@ -30,22 +28,6 @@ def load_schema():
 @st.cache_resource
 def load_pipeline():
     return joblib.load(PIPELINE_PATH)
-
-
-def reset_calculator_state():
-    """Clear patient input + UI flags but keep page routing and disclaimer acceptance."""
-    keep = {"page", "accepted_disclaimer"}
-    for k in list(st.session_state.keys()):
-        if k in keep:
-            continue
-        # form field keys and UI flags used in this app
-        if (
-            k.startswith("fld_")           # text/radio/select inputs
-            or k.startswith("surg_")       # surgery multiselects per group
-            or k.startswith("btn_")        # analyze / impute buttons
-            or k in {"show_missing_prompt", "_scroll_to_form_top_once"}
-        ):
-            del st.session_state[k]
 
 
 def disclaimer_gate(disclaimer_brief: str,
@@ -187,6 +169,20 @@ def build_user_form(schema: dict):
                 """,
                 unsafe_allow_html=True
             )
+
+            # compact spacing for expanders / blocks (applies globally)
+            st.markdown("""
+            <style>
+            /* shrink the default vertical gap between Streamlit blocks */
+            div[data-testid="stVerticalBlock"] { gap: 0.5rem !important; }
+
+            /* tighten expander spacing and paddings */
+            div[data-testid="stExpander"] { margin: 4px 0 !important; }
+            div[data-testid="stExpander"] > details > summary { padding: 8px 12px !important; }
+            div[data-testid="stExpander"] > details > div[role="group"] { padding: 8px 12px !important; }
+            </style>
+            """, unsafe_allow_html=True)
+
             for grp in surgery_field.get("groups", []):
                 with st.expander(grp.get("title", "Group"), expanded=False):
                     options = grp.get("options", [])
@@ -434,6 +430,12 @@ def show_calculator():
     if fig is not None:
         st.subheader("Top Factors Influencing the Risk Estimate")
         st.pyplot(fig, clear_figure=True)
+        st.markdown(
+            """
+            Red bars push the prediction towards higher risk. Blue bars push the prediction towards lower risk. The longer the bar, the stronger the effect. Feature labels indicate the patient's input values. Missing values were imputed.
+            """
+        )
+
     elif shap_top is not None:
         st.subheader("Top Factors Influencing the Risk Estimate")
         fields = schema.get("fields", [])
@@ -442,12 +444,6 @@ def show_calculator():
         shap_top_display.index = [name_to_label.get(feat, feat) for feat in shap_top_display.index]
         shap_top_display = shap_top_display.fillna("")  # no "(imputed)" text
         st.dataframe(shap_top_display)
-
-    st.divider()
-    if st.button("Reset", type="primary"):
-        reset_calculator_state()
-        st.session_state["page"] = "calculator"  # ensure we land back on Calculator
-        st.rerun()
 
     render_footer()
 
