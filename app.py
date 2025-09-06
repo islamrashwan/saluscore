@@ -1,140 +1,16 @@
+# NEW SHAP BRANCH
+
 import json
 import joblib
 import pandas as pd
 import streamlit as st
-import datetime
-import csv
 from pathlib import Path
 import streamlit.components.v1 as components
 
 # Constants
-# Probability threshold for class 1 (mortality) chosen from Youden's index
-DECISION_THRESHOLD = 0.1275
+DECISION_THRESHOLD = 0.1275  # Youden-tuned threshold for class 1 (mortality)
 
-def disclaimer_gate(disclaimer_brief: str,
-                    disclaimer_full: str,
-                    owner="SaluSCORE™ Project Team",
-                    version="v0.1",
-                    log_to_csv=False) -> bool:
-    """
-    Show brief terms first; on 'Read Full Terms of Use' swap to full text.
-    Block app until 'I Accept and Proceed' is pressed, then hide permanently.
-    Uses on_click callbacks (no st.rerun) for single-click behavior.
-    """
-    import csv, datetime
-    import streamlit as st
-
-    st.markdown("""
-    <style>
-    /* Make the secondary button inside the expander look like a bold underlined link */
-    div[data-testid="stExpander"] div[data-testid="stButton"] > button[kind="secondary"] {
-        background: transparent !important;
-        color: #1f6feb !important;        /* link-ish blue */
-        border: none !important;
-        padding: 0 !important;
-        box-shadow: none !important;
-        text-decoration: underline !important;
-        font-weight: 600 !important;       /* bold */
-        cursor: pointer !important;
-    }
-
-    /* Hover/focus states */
-    div[data-testid="stExpander"] div[data-testid="stButton"] > button[kind="secondary"]:hover,
-    div[data-testid="stExpander"] div[data-testid="stButton"] > button[kind="secondary"]:focus {
-        text-decoration: underline !important;
-        opacity: 0.9;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-    # If already accepted, let the app proceed
-    if st.session_state.get("accepted_disclaimer", False):
-        return True
-
-    # Ensure flags exist
-    st.session_state.setdefault("show_full_terms", False)
-
-    # --- Card styles ---
-    st.markdown("""
-    <style>
-    div[data-testid="stExpander"] {
-        background-color: var(--secondaryBackgroundColor);
-        border: 1px solid #CBD5E1;
-        border-radius: 8px;
-        margin-top: 12px;
-    }
-    div[data-testid="stExpander"] > details > summary {
-        background-color: var(--secondaryBackgroundColor);
-        padding: 10px 14px;
-        border-radius: 8px 8px 0 0;
-    }
-    div[data-testid="stExpander"] > details > div[role="group"] {
-        background-color: var(--secondaryBackgroundColor);
-        padding: 14px;
-        border-top: 1px solid #CBD5E1;
-        border-radius: 0 0 8px 8px;
-    }
-    div[data-testid="stExpander"] summary p {
-        color: #3A4556 !important;
-        font-weight: 600;
-        margin: 0;
-    }
-    .disclaimer-text {
-        font-size: 15px; 
-        color: #3A4556;
-        margin-top: 6px;
-        line-height: 1.5;
-    }
-    @media (max-width: 600px) {
-        button[kind="primary"] { width: 100% !important; }
-        .disclaimer-text { font-size: 14px !important; }
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-    # --- Callbacks ---
-    def _accept():
-        st.session_state["accepted_disclaimer"] = True
-        st.session_state["_scroll_to_form_top_once"] = True
-        if log_to_csv:
-            try:
-                with open("consent_log.csv", "a", newline="", encoding="utf-8") as f:
-                    csv.writer(f).writerow([datetime.datetime.utcnow().isoformat() + "Z", owner, version])
-            except Exception:
-                pass
-
-    def _show_full():
-        st.session_state["show_full_terms"] = True
-
-    with st.expander("Terms of Use", expanded=True):
-        text_to_show = disclaimer_full if st.session_state["show_full_terms"] else disclaimer_brief
-        st.markdown(text_to_show)
-
-        # link-style secondary button (shown only on brief view)
-        if not st.session_state["show_full_terms"]:
-            st.button("Read Full Terms of Use", key="btn_read_full", on_click=_show_full)
-
-        # primary accept button
-        st.button("I Accept and Proceed", key="btn_accept", type="primary", on_click=_accept)
-
-    # Footer while gated
-    st.markdown(
-        """
-        <div style='text-align: center; font-size: 0.8em; color: #888; margin-top: 2em;'>
-            © 2025 SaluSCORE™ Project Team. All rights reserved.<br>
-            Contact: <a href="mailto:isl.moh.ali@gmail.com">isl.moh.ali@gmail.com</a>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-    # Block the rest of the app until accepted
-    if not st.session_state.get("accepted_disclaimer", False):
-        st.stop()
-    return True
-
-
-# Try to import the SHAP + traditional score helper that returns a Matplotlib figure (no file writes)
+# Try to import the SHAP + traditional score helper that returns a Matplotlib figure
 try:
     from predict_and_explain import predict_proba_and_shap
     HAS_HELPER = True
@@ -156,6 +32,71 @@ def load_pipeline():
     return joblib.load(PIPELINE_PATH)
 
 
+def disclaimer_gate(disclaimer_brief: str,
+                    disclaimer_full: str,
+                    owner="SaluSCORE™ Project Team",
+                    version="v0.1",
+                    log_to_csv=False) -> bool:
+    """
+    Show brief terms first; on 'Read Full Terms of Use' swap to full text.
+    Block app until 'I Accept and Proceed' is pressed, then hide permanently.
+    """
+    st.markdown("""
+    <style>
+    /* Make the secondary button inside the expander look like a bold underlined link */
+    div[data-testid="stExpander"] div[data-testid="stButton"] > button[kind="secondary"] {
+        background: transparent !important;
+        color: #1f6feb !important;
+        border: none !important;
+        padding: 0 !important;
+        box-shadow: none !important;
+        text-decoration: underline !important;
+        font-weight: 600 !important;
+        cursor: pointer !important;
+    }
+    div[data-testid="stExpander"] { background-color: var(--secondaryBackgroundColor); border: 1px solid #CBD5E1; border-radius: 8px; margin-top: 12px; }
+    div[data-testid="stExpander"] > details > summary { background-color: var(--secondaryBackgroundColor); padding: 10px 14px; border-radius: 8px 8px 0 0; }
+    div[data-testid="stExpander"] > details > div[role="group"] { background-color: var(--secondaryBackgroundColor); padding: 14px; border-top: 1px solid #CBD5E1; border-radius: 0 0 8px 8px; }
+    div[data-testid="stExpander"] summary p { color: #3A4556 !important; font-weight: 600; margin: 0; }
+    .disclaimer-text { font-size: 15px; color: #3A4556; margin-top: 6px; line-height: 1.5; }
+    @media (max-width: 600px) { button[kind="primary"] { width: 100% !important; } .disclaimer-text { font-size: 14px !important; } }
+    </style>
+    """, unsafe_allow_html=True)
+
+    if st.session_state.get("accepted_disclaimer", False):
+        return True
+
+    st.session_state.setdefault("show_full_terms", False)
+
+    def _accept():
+        st.session_state["accepted_disclaimer"] = True
+        st.session_state["_scroll_to_form_top_once"] = True
+
+    def _show_full():
+        st.session_state["show_full_terms"] = True
+
+    with st.expander("Terms of Use", expanded=True):
+        text_to_show = disclaimer_full if st.session_state["show_full_terms"] else disclaimer_brief
+        st.markdown(text_to_show)
+        if not st.session_state["show_full_terms"]:
+            st.button("Read Full Terms of Use", key="btn_read_full", on_click=_show_full)
+        st.button("I Accept and Proceed", key="btn_accept", type="primary", on_click=_accept)
+
+    st.markdown(
+        """
+        <div style='text-align: center; font-size: 0.8em; color: #888; margin-top: 2em;'>
+            © 2025 SaluSCORE™ Project Team. All rights reserved.<br>
+            Contact: <a href="mailto:isl.moh.ali@gmail.com">isl.moh.ali@gmail.com</a>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    if not st.session_state.get("accepted_disclaimer", False):
+        st.stop()
+    return True
+
+
 def _num_step(decimals):
     try:
         d = int(decimals)
@@ -167,7 +108,6 @@ def _num_step(decimals):
 def build_user_form(schema: dict):
     import pandas as pd
 
-    # Persisted flag: keep the prompt visible if user hasn’t fixed fields yet
     show_missing_prompt = st.session_state.get("show_missing_prompt", False)
 
     fields = schema.get("fields", [])
@@ -176,7 +116,6 @@ def build_user_form(schema: dict):
     inputs = {}
     invalid_fields = []
 
-    # ----------------- FORM START -----------------
     with st.form("patient_input", clear_on_submit=False):
         inputs = {}
 
@@ -189,15 +128,11 @@ def build_user_form(schema: dict):
 
             if ftype == "category":
                 options = f.get("options", [])
-                # If you want to *force* a choice, set index=None (shows no default selection):
-                # index = None if options else None
                 index = 0 if options else None
                 if widget == "radio":
                     val = st.radio(label, options, index=index, horizontal=True, key=f"fld_{name}")
                 else:
                     val = st.selectbox(label, options, index=index, key=f"fld_{name}")
-
-                # Treat “unknown” for gender/downs as missing (so required check fails and imputation can run)
                 if name in ("gender", "downs") and isinstance(val, str) and val.strip().lower() == "unknown":
                     inputs[name] = None
                 else:
@@ -249,19 +184,16 @@ def build_user_form(schema: dict):
                         chosen = st.multiselect("Select any that apply", options, key=f"surg_{grp.get('title','grp')}")
                         surgeries_selected.extend(chosen)
 
-        # 3) Submit controls INSIDE the form (button + a placeholder below it)
+        # 3) Submit controls
         c1, c2 = st.columns(2)
         with c1:
             submitted = st.form_submit_button("Analyze", type="primary", key="btn_analyze")
         with c2:
             pass
-        loading_below = st.empty()  # we'll write the info box here when analysis starts
-    # ----------------- FORM END -----------------
+        loading_below = st.empty()
 
-    # Attach surgery so it isn't treated as missing
     inputs["surgery"] = surgeries_selected
 
-    # ===== Hard blockers =====
     if not surgeries_selected:
         if submitted or show_missing_prompt:
             st.error("Please select at least one planned surgery to proceed.")
@@ -294,61 +226,41 @@ def build_user_form(schema: dict):
         )
     ]
 
-    # Placeholders for the prompt outside the form
     prompt_box = st.empty()
     btn_box    = st.empty()
-
     intent = None
 
-    # Case 1: User clicked Analyze and there are MISSING required values
     if submitted and missing_required:
         with prompt_box:
-            # Build a bullet list once
             missing_bullets = "\n".join(f"- {x}" for x in missing_required)
-            msg = (
-                "Please fill the missing fields, or click the button below to impute missing values and continue."
-                + "\n\n**Missing fields:**\n" + missing_bullets
-            )
-            st.error(msg)
+            st.error("Please fill the missing fields, or click the button below to impute missing values and continue."
+                     + "\n\n**Missing fields:**\n" + missing_bullets)
         with btn_box:
             if st.button("Analyze with Missing Values Filled", key="btn_impute_now", type="primary"):
                 intent = "analyze_with_imputation"
-                # Clear the prompt area and show loading info under the Analyze button
-                prompt_box.empty(); btn_box.empty()
-                loading_below.info("Loading results below…")
+                prompt_box.empty(); btn_box.empty(); loading_below.info("Loading results below…")
             else:
-                # keep prompt visible on next rerun; do NOT proceed
                 st.session_state["show_missing_prompt"] = True
                 return None
-
-    # Case 2: Prompt already visible from a previous Analyze (user hasn’t fixed fields yet)
     elif show_missing_prompt and missing_required and not submitted:
         with prompt_box:
-            # Build a bullet list once
             missing_bullets = "\n".join(f"- {x}" for x in missing_required)
-            msg = (
-                "Please fill the missing fields, or click the button below to impute missing values and continue."
-                + "\n\n**Missing fields:**\n" + missing_bullets
-            )
-            st.error(msg)
+            st.error("Please fill the missing fields, or click the button below to impute missing values and continue."
+                     + "\n\n**Missing fields:**\n" + missing_bullets)
         with btn_box:
             if st.button("Analyze with Missing Values Filled", key="btn_impute_now", type="primary"):
                 intent = "analyze_with_imputation"
-                prompt_box.empty(); btn_box.empty()
-                loading_below.info("Loading results below…")
+                prompt_box.empty(); btn_box.empty(); loading_below.info("Loading results below…")
             else:
                 return None
-
-    # Case 3: No missing required values and user clicked Analyze → proceed normally
     elif submitted and not missing_required:
         intent = "analyze"
         loading_below.info("Loading results below…")
 
-    # If nothing to do yet
     if intent is None:
         return None
 
-    # ---- rounding/clamping for present numeric values ----
+    # rounding/clamping for present numeric values
     for f in [u for u in fields if u.get("source") == "user" and u.get("name") != "surgery"]:
         name = f.get("name")
         if name in inputs and isinstance(inputs[name], (float, int)):
@@ -361,12 +273,8 @@ def build_user_form(schema: dict):
             if hi is not None:
                 inputs[name] = min(inputs[name], float(hi))
 
-    # Build row and return (your pipeline will impute NaNs when present)
     row = pd.DataFrame([inputs])
-
-    # we've proceeded; no need to keep the “show prompt” flag
     st.session_state.pop("show_missing_prompt", None)
-
     return row
 
 
@@ -382,15 +290,14 @@ def render_footer():
     )
 
 
-def main():
-    # --- TOP anchor + injector placeholder (no visual space) ---
-    st.markdown("<div id='page-top'></div>", unsafe_allow_html=True)
-    _scroll_injector = st.empty()
+# ------------------------- PAGES -------------------------
 
+def show_calculator():
+    """Calculator page: header, Learn More button, disclaimer gate, form, prediction, SHAP, footer."""
     schema = load_schema()
     app_meta = schema.get("app", {})
 
-    # ----- Header -----
+    # Header
     st.title(app_meta.get("title", "SaluSCORE-PED™ v0.1"))
     st.markdown(
         "<p style='font-size:16px; color:#3A4556;'>"
@@ -401,18 +308,24 @@ def main():
         unsafe_allow_html=True
     )
 
-    # ----- Terms (brief + full) -----
+    # Learn More (secondary) → About page
+    if st.button("Learn More", type="secondary"):
+        st.session_state["page"] = "about"
+        st.rerun()
+
+    # Terms (gate the calculator only)
     disclaimer_brief = (
         "This tool is a pilot prototype, provided as is, for research and educational purposes only. "
         "It must not be used for clinical decision-making or for any commercial purpose. "
         "Redistribution or modification is not permitted. By continuing, you accept full responsibility for your use of this tool."
     )
-    disclaimer_full = Path(__file__).with_name("terms.md").read_text(encoding="utf-8")
-
-    # Gate (blocks below until accepted)
+    try:
+        disclaimer_full = Path(__file__).with_name("terms.md").read_text(encoding="utf-8")
+    except Exception:
+        disclaimer_full = "Full Terms of Use not found."
     disclaimer_gate(disclaimer_brief, disclaimer_full, owner="SaluSCORE™ Project Team", version="v0.1")
 
-    # After the gate returns (accepted), jump to the very top once
+    # Jump to top once after acceptance
     if st.session_state.pop("_scroll_to_form_top_once", False):
         components.html(
             """
@@ -435,15 +348,14 @@ def main():
             scrolling=False
         )
 
-    # ----- Build the form only after acceptance -----
+    # Build form
     row = build_user_form(schema)
     if row is None:
         render_footer()
         return
 
-    # --- run prediction & render results ---
+    # Predict
     if HAS_HELPER:
-        # Your helper already returns calibrated probability + SHAP info
         result = predict_proba_and_shap(row, max_display=10)
         if len(result) == 4:
             proba, shap_top, traditional, fig = result
@@ -451,41 +363,22 @@ def main():
             proba, shap_top, traditional = result
             fig = None
     else:
-        # Fallback: use the saved pipeline directly
         pipe = load_pipeline()
-        proba = float(pipe.predict_proba(row)[:, 1])  # calibrated prob of class 1
+        proba = float(pipe.predict_proba(row)[:, 1])
         shap_top = None
         traditional = pd.Series(dtype=float)
         fig = None
 
-    # ---- convert probability to class with your tuned threshold ----
+    # Risk classification
     label = 1 if proba >= DECISION_THRESHOLD else 0
     label_text = "**High-risk**" if label == 1 else "**Not high-risk**"
-
-    # Show the classification first
-    if label == 1:
-        st.error(f"Risk classification: {label_text}")
-    else:
-        st.success(f"Risk classification: {label_text}")
-
-    # Optional transparency: show the underlying probability & threshold
+    (st.error if label == 1 else st.success)(f"Risk classification: {label_text}")
     st.caption(f"Estimated risk probability: {proba*100:.2f}%, High-risk threshold: {DECISION_THRESHOLD*100:.2f}%")
 
-
-    # ========= Traditional Risk Scores (with High-risk column) =========
+    # Traditional Risk Scores table
     if isinstance(traditional, pd.Series) and not traditional.empty:
         st.subheader("Traditional Risk Scores")
-
-        # 1) High-risk thresholds (from your Youden table)
-        TRAD_THRESHOLDS = {
-            "rachs": 3,
-            "abc level": 3,
-            "abc score": 7.78,
-            "stmort category": 3,
-            "stmort score": 0.5,
-        }
-
-        # 2) Pretty labels for the left column
+        TRAD_THRESHOLDS = {"rachs": 3, "abc level": 3, "abc score": 7.78, "stmort category": 3, "stmort score": 0.5}
         label_map = {
             "rachs": "Risk Adjustment for Congenital Heart Surgery (RACHS-1)",
             "abc level": "Aristotle Basic Complexity (ABC) Level",
@@ -493,77 +386,95 @@ def main():
             "stmort category": "STS-EACTS Mortality Category",
             "stmort score": "STS-EACTS Mortality Score",
         }
-
-        # 3) Prepare display values (same formatting you had)
         raw = traditional.copy()
         display_vals = {}
-
         for k in ("rachs", "abc level", "stmort category"):
-            if k in raw and pd.notnull(raw[k]):
-                display_vals[k] = f"{int(round(raw[k]))}"
-        if "abc score" in raw and pd.notnull(raw["abc score"]):
-            display_vals["abc score"] = f"{float(raw['abc score']):.1f}"
-        if "stmort score" in raw and pd.notnull(raw["stmort score"]):
-            display_vals["stmort score"] = f"{float(raw['stmort score']):.1f}"
-        # fall back to raw value if not formatted above
-        for k, v in raw.items():
-            display_vals.setdefault(k, v)
+            if k in raw and pd.notnull(raw[k]): display_vals[k] = f"{int(round(raw[k]))}"
+        if "abc score" in raw and pd.notnull(raw["abc score"]): display_vals["abc score"] = f"{float(raw['abc score']):.1f}"
+        if "stmort score" in raw and pd.notnull(raw["stmort score"]): display_vals["stmort score"] = f"{float(raw['stmort score']):.1f}"
+        for k, v in raw.items(): display_vals.setdefault(k, v)
 
-        # 4) Build: Score | Value | Risk
         rows = []
         for key, thr in TRAD_THRESHOLDS.items():
             if key in raw and pd.notnull(raw[key]):
                 val = float(raw[key])
                 risk = "High-risk" if val >= thr else "Not high-risk"
-                rows.append({
-                    "Score": label_map.get(key, key),
-                    "Value": display_vals.get(key, val),
-                    "Risk": risk,
-                })
+                rows.append({"Score": label_map.get(key, key), "Value": display_vals.get(key, val), "Risk": risk})
 
         trad_df = pd.DataFrame(rows, columns=["Score", "Value", "Risk"])
         trad_df = trad_df.rename(columns={"Score": "Score (Based on Planned Surgery)"})
-        
-        # 5) Color the Risk column like Streamlit success/error
+
         def risk_style(cell):
             s = str(cell).lower()
-            if s == "high-risk":
-                # error-like (red)
-                return "background-color:#FDECEA;color:#7A0C2E;font-weight:600;"
-            else:
-                # success-like (green)
-                return "background-color:#ECFDF5;color:#065F46;font-weight:600;"
+            return ("background-color:#FDECEA;color:#7A0C2E;font-weight:600;" if s == "high-risk"
+                    else "background-color:#ECFDF5;color:#065F46;font-weight:600;")
 
         styled = trad_df.style.applymap(risk_style, subset=["Risk"]).hide(axis="index")
         st.table(styled)
+        st.caption("High-risk thresholds used: RACHS-1 ≥ 3, ABC Level ≥ 3, ABC Score ≥ 7.78, "
+                   "STS-EACTS Mortality Category ≥ 3, STS-EACTS Mortality Score ≥ 0.5.")
 
-        # 6) Brief thresholds note under the table
-        st.caption(
-            "High-risk thresholds used: "
-            "RACHS-1 ≥ 3, ABC Level ≥ 3, ABC Score ≥ 7.78, "
-            "STS-EACTS Mortality Category ≥ 3, STS-EACTS Mortality Score ≥ 0.5."
-        )
-
-
+    # SHAP
     if fig is not None:
         st.subheader("Top Factors Influencing the Risk Estimate")
         st.pyplot(fig, clear_figure=True)
     elif shap_top is not None:
         st.subheader("Top Factors Influencing the Risk Estimate")
-
-        # Replace internal feature names with user labels from schema
         fields = schema.get("fields", [])
         name_to_label = {f["name"]: f.get("label", f["name"]) for f in fields}
-
         shap_top_display = shap_top.copy()
-        shap_top_display.index = [
-            name_to_label.get(feat, feat) for feat in shap_top_display.index
-        ]
-        shap_top_display = shap_top_display.fillna("imputed")
-
+        shap_top_display.index = [name_to_label.get(feat, feat) for feat in shap_top_display.index]
+        shap_top_display = shap_top_display.fillna("")  # no "(imputed)" text
         st.dataframe(shap_top_display)
 
-    render_footer()  # footer after full content
+    render_footer()
+
+
+def show_about():
+    """About page content and back button."""
+    st.title("Learn More")
+
+    st.markdown("""
+### Why SaluSCORE? 
+The name is derived from the Latin word Salus, which denotes good health. This reflects our mission to improve outcomes in congenital heart surgery by harnessing artificial intelligence responsibly.
+
+---
+### What the App Does?
+SaluSCORE-PED™ is a pilot research prototype that uses preoperative demographics, labs and planned procedures to estimate in-hospital mortality risk after congenital cardiac surgery in pediatric patients.  
+It currently provides a binary classification using a tuned, calibrated Bagged Extreme Gradient Boosting (XGBoost) model, with Shapley Additive Explanations to show which features most influenced the result.
+
+---
+### Study Highlights
+This pilot exploratory study evaluated the model on a multicenter cohort in Egypt (566 patients), using 80% (452 patients) for training and 20% (114 patients) for internal testing, and further validated it on an external cohort (114 patients). Given the relatively small sample size, these findings should be interpreted as preliminary.
+The model outperformed traditional scores, which showed area under the receiver operating characteristic curve values in the range of of 0.60-0.76, whereas the Bagged XGBoost model achieved 0.82 internally and 0.88 externally, with good calibration, Brier score 0.08.
+
+---
+### Releases
+- **Release v0.1: 4 September, 2025**: Initial pilot prototype; supports binary risk classification.
+    """)
+
+    if st.button("Back to App", type="primary"):
+        st.session_state["page"] = "calculator"
+        st.rerun()
+
+    render_footer()
+
+
+# ------------------------- ROUTER -------------------------
+
+def main():
+    # TOP anchor (used for scroll jump after accepting terms)
+    st.markdown("<div id='page-top'></div>", unsafe_allow_html=True)
+
+    # Init page
+    if "page" not in st.session_state:
+        st.session_state["page"] = "calculator"
+
+    # Route
+    if st.session_state["page"] == "about":
+        show_about()
+    else:
+        show_calculator()
 
 
 if __name__ == "__main__":
