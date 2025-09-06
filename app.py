@@ -522,7 +522,8 @@ def main():
                 })
 
         trad_df = pd.DataFrame(rows, columns=["Score", "Value", "Risk"])
-
+        trad_df = trad_df.rename(columns={"Score": "Score (Based on Planned Surgery)"})
+        
         # 5) Color the Risk column like Streamlit success/error
         def risk_style(cell):
             s = str(cell).lower()
