@@ -385,7 +385,7 @@ def show_calculator():
     label = 1 if proba >= DECISION_THRESHOLD else 0
     label_text = "**High-risk**" if label == 1 else "**Not high-risk**"
     (st.error if label == 1 else st.success)(f"Risk classification: {label_text}")
-    st.caption(f"Estimated risk probability: {proba*100:.2f}%, High-risk threshold: {DECISION_THRESHOLD*100:.2f}%")
+    st.caption(f"Estimated risk probability: {proba*100:.2f}%, High-risk threshold: {DECISION_THRESHOLD*100:.2f}%.")
 
     # Traditional Risk Scores table
     if isinstance(traditional, pd.Series) and not traditional.empty:
