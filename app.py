@@ -216,7 +216,7 @@ def build_user_form(schema: dict):
         # 3) Submit controls
         c1, c2 = st.columns(2)
         with c1:
-            submitted = st.form_submit_button("Analyze", type="primary", key="btn_analyze")
+            submitted = st.form_submit_button("Analyze", type="primary")
         with c2:
             pass
         loading_below = st.empty()
