@@ -121,6 +121,23 @@ def build_user_form(schema: dict):
         for f in user_fields:
             name  = f.get("name")
             label = f.get("label", name)
+
+            # --- Mark obligatory fields with "*" ---
+            OBLIGATORY_LABELS = {
+                "Gender",
+                "Age (years)",
+                "Down Syndrome",
+                "Hemoglobin (g/dL)",
+                "Hematocrit (%)",
+                "Mean Corpuscular Volume (fL)",
+                "Mean Corpuscular Hemoglobin (pg)",
+                "Mean Corpuscular Hemoglobin Concentration (g/dL)",
+                "Platelets (×10^9/L)",
+                "Total Leucocyte Count (×10^9/L)",
+            }
+            if label in OBLIGATORY_LABELS:
+                label = f"{label} *"
+
             ftype = f.get("type", "text")
             widget = f.get("widget", None)
 
@@ -226,68 +243,94 @@ def build_user_form(schema: dict):
         st.session_state.pop("show_missing_prompt", None)
         return None
 
-    # Compute missing required (excluding surgery)
-    missing_required = [
-        f.get("label", f.get("name"))
-        for f in fields
-        if (
-            f.get("source") == "user"
-            and f.get("required")
-            and f.get("name") != "surgery"
-            and (inputs.get(f.get("name")) is None or inputs.get(f.get("name")) == "")
-        )
+    # --- NEW: separate obligatory vs optional-imputable fields ---
+    obligatory_names = {
+        "gender", "age", "downs", "hb", "hct", "mcv", "mch", "mchc", "plt", "tlc"
+    }
+    optional_imputable_names = {
+        "weight", "spo2", "inr", "ptt", "creat", "urea", "alt", "ast"
+    }
+
+    # helper to map internal names to labels from the schema
+    name_to_label = {f.get("name"): f.get("label", f.get("name")) for f in fields}
+
+    # what's missing?
+    missing_oblig = [
+        name_to_label[n] for n in obligatory_names
+        if (n not in inputs) or (inputs.get(n) is None) or (inputs.get(n) == "")
+    ]
+    missing_optional = [
+        name_to_label[n] for n in optional_imputable_names
+        if (n not in inputs) or (inputs.get(n) is None) or (inputs.get(n) == "")
     ]
 
     prompt_box = st.empty()
     btn_box    = st.empty()
     intent = None
 
-    if submitted and missing_required:
+    # 1) If any obligatory fields are missing -> STOP here (no imputation offered)
+    if submitted and missing_oblig:
         with prompt_box:
-            missing_bullets = "\n".join(f"- {x}" for x in missing_required)
-            st.error("Please fill the missing fields, or click the button below to impute missing values and continue."
-                     + "\n\n**Missing fields:**\n" + missing_bullets)
+            missing_bullets = "\n".join(f"- {x}" for x in sorted(missing_oblig))
+            st.error(
+                "Please fill the **obligatory** fields before continuing."
+                + "\n\n**Obligatory fields missing:**\n" + missing_bullets
+            )
+        st.session_state.pop("show_missing_prompt", None)
+        return None
+
+    # 2) If obligatory are present but optional are missing -> offer imputation
+    if submitted and not missing_oblig and missing_optional:
+        with prompt_box:
+            missing_bullets = "\n".join(f"- {x}" for x in sorted(missing_optional))
+            st.warning(
+                "Some optional fields are missing. You can either fill them or proceed "
+                "with **imputation** for the missing optional values."
+                + "\n\n**Optional fields missing:**\n" + missing_bullets
+            )
         with btn_box:
-            if st.button("Analyze with Missing Values Filled", key="btn_impute_now", type="primary"):
+            if st.button("Analyze with Missing Optional Values Imputed", key="btn_impute_now", type="primary"):
                 intent = "analyze_with_imputation"
                 prompt_box.empty(); btn_box.empty(); loading_below.info("Loading results below…")
             else:
                 st.session_state["show_missing_prompt"] = True
                 return None
-    elif show_missing_prompt and missing_required and not submitted:
+
+    # 3) Handle the reminder case when the session asked to show the prompt again
+    elif show_missing_prompt and not submitted and not missing_oblig and missing_optional:
         with prompt_box:
-            missing_bullets = "\n".join(f"- {x}" for x in missing_required)
-            st.error("Please fill the missing fields, or click the button below to impute missing values and continue."
-                     + "\n\n**Missing fields:**\n" + missing_bullets)
+            missing_bullets = "\n".join(f"- {x}" for x in sorted(missing_optional))
+            st.warning(
+                "Some optional fields are still missing. You may proceed with **imputation** "
+                "or fill them first."
+                + "\n\n**Optional fields missing:**\n" + missing_bullets
+            )
         with btn_box:
-            if st.button("Analyze with Missing Values Filled", key="btn_impute_now", type="primary"):
+            if st.button("Analyze with Missing Optional Values Imputed", key="btn_impute_now", type="primary"):
                 intent = "analyze_with_imputation"
                 prompt_box.empty(); btn_box.empty(); loading_below.info("Loading results below…")
             else:
                 return None
-    elif submitted and not missing_required:
+
+    # 4) If nothing missing -> normal analyze
+    elif submitted and not missing_oblig and not missing_optional:
         intent = "analyze"
         loading_below.info("Loading results below…")
 
-    if intent is None:
-        return None
+    # Build the single-row dataframe when an action is chosen
+    if intent in ("analyze", "analyze_with_imputation"):
+        # 'inputs' already contains all user fields + 'surgery'
+        row = pd.DataFrame([inputs])
+        # (optional) remember which path was chosen
+        st.session_state["analysis_intent"] = intent
+        return row
 
-    # rounding/clamping for present numeric values
-    for f in [u for u in fields if u.get("source") == "user" and u.get("name") != "surgery"]:
-        name = f.get("name")
-        if name in inputs and isinstance(inputs[name], (float, int)):
-            round_to = f.get("round_to")
-            if round_to:
-                inputs[name] = round(inputs[name] / round_to) * round_to
-            lo = f.get("min"); hi = f.get("max")
-            if lo is not None:
-                inputs[name] = max(inputs[name], float(lo))
-            if hi is not None:
-                inputs[name] = min(inputs[name], float(hi))
 
-    row = pd.DataFrame([inputs])
-    st.session_state.pop("show_missing_prompt", None)
-    return row
+    st.markdown("<small>**\\*** Obligatory field — must be filled before analysis</small>", unsafe_allow_html=True)
+
+
+    # no action yet → keep building UI
+    return None
 
 
 def render_footer():
