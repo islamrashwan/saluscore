@@ -475,7 +475,7 @@ def show_calculator():
         st.pyplot(fig, clear_figure=True)
         st.markdown(
             """
-            Red bars push the prediction towards higher risk. Blue bars push the prediction towards lower risk. The longer the bar, the stronger the effect. Feature labels indicate the patient's input values. Missing values were imputed.
+            Red bars push the prediction towards higher risk. Blue bars push the prediction towards lower risk. The longer the bar, the stronger the effect. Feature labels indicate the patient's input values. Missing optional values were imputed.
             """
         )
 
