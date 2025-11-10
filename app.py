@@ -5,6 +5,12 @@ import streamlit as st
 from pathlib import Path
 import streamlit.components.v1 as components
 
+# --- Preflight: ensure stdlib pathlib is used (not a backport or local package) ---
+import pathlib, sys
+_pf = getattr(pathlib, "__file__", "") or ""
+if "site-packages" in _pf.lower():
+    raise RuntimeError(f"Bad pathlib found at: {_pf}. Remove any 'pathlib' wheels/backports or local modules.")
+
 # Constants
 DECISION_THRESHOLD = 0.1275  # Youden-tuned threshold for class 1 (mortality)
 

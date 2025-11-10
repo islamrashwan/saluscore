@@ -25,6 +25,11 @@ import warnings
 from sklearn.exceptions import ConvergenceWarning
 warnings.filterwarnings("ignore", category=ConvergenceWarning)
 
+# --- Preflight: ensure stdlib pathlib is used (not a backport or local package) ---
+import pathlib, sys
+_pf = getattr(pathlib, "__file__", "") or ""
+if "site-packages" in _pf.lower():
+    raise RuntimeError(f"Bad pathlib found at: {_pf}. Remove any 'pathlib' wheels/backports or local modules.")
 
 # --------------------
 # Paths (adjust if needed)
