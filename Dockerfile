@@ -9,6 +9,9 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Debug pathlib shadowing
+RUN pip list | grep pathlib || echo "No pathological pathlib detected"
+
 # ---- 3. Copy the rest of the app ----
 COPY . .
 
