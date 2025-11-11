@@ -1,92 +1,118 @@
 # build_serving_pipeline.py
-# Assembles the final serving pipeline: saluSCORE_ped_pipeline.pkl
+# Builds serving artifact saluSCORE_ped_pipeline.pkl.
+# If missing, also builds:
+#   - normalization_scaler.joblib  (from B_Train80_NoLKG_Imputed.xlsx)
+#   - calibrated_xgboost_bagging_model.pkl (from B_Train80_NoLKG_Imputed_NORM_RmvZero.xlsx)
 
 import json
 import joblib
-import numpy as np
-import pandas as pd
 import warnings
 from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+# sklearn
+from sklearn.experimental import enable_iterative_imputer  # noqa: F401
+from sklearn.impute import IterativeImputer
 from sklearn.pipeline import Pipeline
-from sklearn.exceptions import ConvergenceWarning
+from sklearn.calibration import CalibratedClassifierCV
+from sklearn.ensemble import BaggingClassifier
+from sklearn.metrics import roc_curve
+from sklearn.preprocessing import MinMaxScaler
+
+# xgboost
+import xgboost as xgb
+
+# local
 from salu_pipeline_components import (
     SurgeryDeriver, BinaryEncoder, IterativeImputerWrapper,
     RoundingTransformer, PreFittedScaler, ColumnOrderEnforcer
 )
 
-warnings.filterwarnings("ignore", category=ConvergenceWarning)
+warnings.filterwarnings("ignore")
 
-# -----------------------------------------------------------
-# File paths (these will exist inside Docker after training)
-# -----------------------------------------------------------
-FEATURE_SCHEMA   = Path("feature_schema.json")
-LOOKUP_CSV       = Path("complexities_imputed.csv")
-TRAIN_CSV        = Path("training_data_fitting_imputer.csv")
+# --------------------
+# Paths
+# --------------------
+FEATURE_SCHEMA = Path("feature_schema.json")
+LOOKUP_CSV = Path("complexities_imputed.csv")
+TRAIN_CSV_FOR_IMPUTER = Path("training_data_fitting_imputer.csv")  # used to fit IterativeImputer
+SCALER_JOBLIB = Path("normalization_scaler.joblib")
+MODEL_PKL = Path("calibrated_xgboost_bagging_model.pkl")
+OUT_PIPELINE = Path("saluSCORE_ped_pipeline.pkl")
 
-SCALER_FILE      = Path("normalization_scaler.joblib")               # created in Docker
-MODEL_FILE       = Path("calibrated_xgboost_bagging_model.pkl")      # created in Docker
+# your original training inputs
+TRAIN_XLSX_FOR_SCALER = Path("B_Train80_NoLKG_Imputed.xlsx")
+TRAIN_XLSX_FOR_MODEL = Path("B_Train80_NoLKG_Imputed_NORM_RmvZero.xlsx")
+TARGET_COL = "mort in"
 
-OUT_PIPELINE     = Path("saluSCORE_ped_pipeline.pkl")
-
-TARGET_COL       = "mort in"
-
-
-# -----------------------------------------------------------
+# --------------------
 # Helpers
-# -----------------------------------------------------------
-def ensure_exists(path: Path, name: str):
-    """Ensure required artifact exists. If not, give a clear error."""
-    if not path.exists():
-        raise FileNotFoundError(
-            f"\nMissing required {name}: {path}\n"
-            f"This file is generated during Docker build via train_model_and_scaler.py.\n"
-            f"Make sure your Dockerfile includes:\n"
-            f"  RUN python train_model_and_scaler.py\n"
-        )
-
-
+# --------------------
 def read_schema(path: Path):
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
+def ensure_scaler():
+    if SCALER_JOBLIB.exists():
+        print(f"[scaler] Found existing: {SCALER_JOBLIB}")
+        return
 
-# -----------------------------------------------------------
-# Main assembly
-# -----------------------------------------------------------
-def main():
-    print("\n=== Building Serving Pipeline ===")
+    print(f"[scaler] Building scaler from: {TRAIN_XLSX_FOR_SCALER}")
+    df_train = pd.read_excel(TRAIN_XLSX_FOR_SCALER)
+    numerical_cols = df_train.select_dtypes(include=["float64", "int64"]).columns
+    scaler = MinMaxScaler()
+    scaler.fit(df_train[numerical_cols])
+    joblib.dump(scaler, SCALER_JOBLIB)
+    print(f"[scaler] Saved: {SCALER_JOBLIB}")
 
-    # 1. Ensure necessary files exist
-    ensure_exists(FEATURE_SCHEMA, "feature schema JSON")
-    ensure_exists(LOOKUP_CSV, "surgery lookup CSV")
-    ensure_exists(TRAIN_CSV, "training CSV for imputer")
+def create_xgb_model():
+    return xgb.XGBClassifier(
+        objective="binary:logistic",
+        eval_metric="auc",
+        random_state=42,
+        max_depth=3,
+        learning_rate=0.01928044904842136,
+        min_child_weight=1,
+        subsample=0.8614501903065227,
+        colsample_bytree=0.8796696936441701,
+        colsample_bylevel=0.7324794662581371,
+        gamma=1.193696245915529,
+        n_estimators=100,
+        scale_pos_weight=5,
+        reg_alpha=0.00032536986825252743,
+        reg_lambda=0.5447906698870625
+    )
 
-    ensure_exists(SCALER_FILE, "normalization scaler")
-    ensure_exists(MODEL_FILE, "calibrated model pickle")
+def ensure_model():
+    if MODEL_PKL.exists():
+        print(f"[model] Found existing: {MODEL_PKL}")
+        return
 
-    # 2. Load schema
+    print(f"[model] Training calibrated bagged XGBoost from: {TRAIN_XLSX_FOR_MODEL}")
+    train_df = pd.read_excel(TRAIN_XLSX_FOR_MODEL)
+    X_train = train_df.drop(columns=[TARGET_COL])
+    y_train = train_df[TARGET_COL]
+
+    bagging = BaggingClassifier(
+        estimator=create_xgb_model(),
+        n_estimators=12,
+        max_samples=0.9106169555339139,
+        max_features=0.862727747704497,
+        bootstrap=True,
+        random_state=42
+    )
+
+    calibrated = CalibratedClassifierCV(bagging, method="isotonic", cv=5)
+    calibrated.fit(X_train, y_train)
+
+    joblib.dump(calibrated, MODEL_PKL)
+    print(f"[model] Saved: {MODEL_PKL}")
+
+def build_serving_pipeline():
     schema = read_schema(FEATURE_SCHEMA)
     feature_order = schema["feature_order"]
-
-    # 3. Load scaler
-    print("Loading scaler...")
-    scaler = joblib.load(SCALER_FILE)
-
-    # 4. Load calibrated model
-    print("Loading calibrated model...")
-    model = joblib.load(MODEL_FILE)
-
-    # 5. Fit imputer using TRAIN_CSV
-    print("Fitting imputer on training data...")
-    train = pd.read_csv(TRAIN_CSV)
-    train_no_target = train.drop(columns=[TARGET_COL]) if TARGET_COL in train.columns else train
-
-    numeric_cols = train_no_target.select_dtypes(include=["float64","float32","int64","int32"]).columns
-    impute_cols = [c for c in numeric_cols if train_no_target[c].isnull().any()]
-    imputer = IterativeImputerWrapper(impute_cols=impute_cols).fit(train_no_target)
-
-    # 6. Build pipeline
-    print("Assembling pipeline...")
 
     rounding = {
         "ones":       ["gender", "spo2", "downs", "plt", "urea", "alt", "ast"],
@@ -94,42 +120,48 @@ def main():
         "hundredths": ["tlc", "inr", "creat"]
     }
 
-    pipe = Pipeline([
+    train = pd.read_csv(TRAIN_CSV_FOR_IMPUTER)
+    train_no_target = train.drop(columns=[TARGET_COL]) if TARGET_COL in train.columns else train
+
+    num_cols = train_no_target.select_dtypes(include=["float64","int64","float32","int32"]).columns
+    impute_cols = [c for c in num_cols if train_no_target[c].isnull().any()]
+
+    imputer_wrapped = IterativeImputerWrapper(impute_cols=impute_cols).fit(train_no_target)
+
+    scaler = joblib.load(SCALER_JOBLIB)
+    model = joblib.load(MODEL_PKL)
+
+    pipe = Pipeline(steps=[
         ("derive", SurgeryDeriver(lookup_path=LOOKUP_CSV)),
         ("encode", BinaryEncoder(mappings={
             "gender": {"male": 1, "female": 0},
-            "downs":  {"yes": 1, "no": 0},
+            "downs":  {"yes": 1, "no": 0}
         })),
-        ("impute", imputer),
+        ("impute", imputer_wrapped),
         ("round",  RoundingTransformer(**rounding)),
         ("order",  ColumnOrderEnforcer(feature_order)),
         ("scale",  PreFittedScaler(scaler)),
-        ("model",  model)
+        ("model",  model),
     ])
 
-    # 7. Fit SurgeryDeriver (loads lookup table)
-    print("Initializing SurgeryDeriver...")
     pipe.named_steps["derive"].fit(pd.DataFrame({"surgery": []}))
 
-    # 8. Pass sample data through early steps to initialize scaling columns
-    print("Preparing scale-column mapping...")
-    X_tmp = pd.read_csv(TRAIN_CSV)
-    X_tmp = X_tmp.drop(columns=[TARGET_COL]) if TARGET_COL in X_tmp else X_tmp
+    Xtmp = train_no_target.copy()
+    Xtmp = pipe.named_steps["derive"].transform(Xtmp)
+    Xtmp = pipe.named_steps["encode"].transform(Xtmp)
+    Xtmp = pipe.named_steps["impute"].transform(Xtmp)
+    Xtmp = pipe.named_steps["round"].transform(Xtmp)
+    Xtmp = pipe.named_steps["order"].transform(Xtmp)
 
-    X_tmp = pipe.named_steps["derive"].transform(X_tmp)
-    X_tmp = pipe.named_steps["encode"].transform(X_tmp)
-    X_tmp = pipe.named_steps["impute"].transform(X_tmp)
-    X_tmp = pipe.named_steps["round"].transform(X_tmp)
-    X_tmp = pipe.named_steps["order"].transform(X_tmp)
+    pipe.named_steps["scale"].fit(Xtmp)
 
-    pipe.named_steps["scale"].fit(X_tmp)
-
-    # 9. Save final pipeline
-    print(f"Saving final pipeline → {OUT_PIPELINE} ...")
     joblib.dump(pipe, OUT_PIPELINE, compress=3)
+    print(f"[pipeline] Saved → {OUT_PIPELINE.resolve()}")
 
-    print("✅ Pipeline build complete.\n")
-
+def main():
+    ensure_scaler()
+    ensure_model()
+    build_serving_pipeline()
 
 if __name__ == "__main__":
     main()

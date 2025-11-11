@@ -20,13 +20,10 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Double-check no bad pathlib backport
-RUN python - << 'PY'
-import pathlib, pkgutil
-mods = [m.name for m in pkgutil.iter_modules()]
-print("Pathlib backport present?", "pathlib" in mods or "pathlib2" in mods)
-print("Using pathlib at:", getattr(pathlib, "__file__", "builtin"))
-PY
+# Check for accidental pathlib backport
+RUN python -c "import pathlib, pkgutil; mods=[m.name for m in pkgutil.iter_modules()]; \
+print('Pathlib backport present?', ('pathlib' in mods or 'pathlib2' in mods)); \
+print('Using pathlib at:', getattr(pathlib, '__file__', 'builtin'))"
 
 # ==========================================================
 # 4. Copy full project
@@ -36,8 +33,8 @@ COPY . .
 # ==========================================================
 # 5. TRAIN ARTIFACTS INSIDE DOCKER
 #    This script must output:
-#    - normalization_scaler.joblib
-#    - calibrated_xgboost_bagging_model.pkl
+#      - normalization_scaler.joblib
+#      - calibrated_xgboost_bagging_model.pkl
 # ==========================================================
 RUN python train_model_and_scaler.py
 
@@ -45,13 +42,10 @@ RUN python train_model_and_scaler.py
 # 6. BUILD SERVING PIPELINE
 #    This will create saluSCORE_ped_pipeline.pkl
 # ==========================================================
-RUN python - << 'PY'
-from build_serving_pipeline import main
-main()
-PY
+RUN python -c "from build_serving_pipeline import main; main()"
 
 # ==========================================================
-# 7. Streamlit Runtime Config
+# 7. Streamlit Runtime
 # ==========================================================
 ENV PORT=8080
 ENV STREAMLIT_SERVER_PORT=$PORT
