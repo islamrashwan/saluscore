@@ -1,10 +1,10 @@
 # Core app & UI
 streamlit==1.28.2          # app UI (used in app.py)
-matplotlib==3.7.1          # plotting for SHAP bar chart
+matplotlib==3.8          # plotting for SHAP bar chart
 
 # Data & utilities
-pandas==1.5.3              # DataFrame IO/manipulation
-numpy==1.24.4              # numerical backbone
+pandas==2.2              # DataFrame IO/manipulation
+numpy==2.0              # numerical backbone
 joblib==1.2.0              # load/save model & pipeline artifacts
 openpyxl==3.1.2            # Excel reading (pandas read_excel engine)
 
