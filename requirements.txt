@@ -1,11 +1,8 @@
-# core
-streamlit>=1.36       # supports NumPy 2.x
-numpy==2.0.0
+streamlit==1.28.2
+numpy==1.26.4
 pandas==2.2.0
 matplotlib==3.8.0
-joblib==1.3.2         # safe with py3.11, sklean, numpy2
-
-# ML
+joblib==1.3.2
 scikit-learn==1.6.1
 xgboost==2.1.4
 shap==0.42.1
