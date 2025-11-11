@@ -1,36 +1,63 @@
-# ---- 1) Base image ----
+# ==========================================================
+# 1. Base image
+# ==========================================================
 FROM python:3.11-slim
 
-# Allow cache-busting from your trigger (optional)
+# Optional cache-buster to force rebuilds
 ARG CACHE_BUST=initial
 
-# ---- 2) OS deps ----
-RUN apt-get update && apt-get install -y --no-install-recommends build-essential && \
-    rm -rf /var/lib/apt/lists/*
+# ==========================================================
+# 2. OS Dependencies
+# ==========================================================
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
-# ---- 3) Python deps ----
+# ==========================================================
+# 3. Python Dependencies
+# ==========================================================
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Prove no pathlib backport is present (shows in Cloud Build logs)
-RUN python -c "import sys, pkgutil; print('pathlib backport present?' , any(m.name in ('pathlib','pathlib2') for m in pkgutil.iter_modules()))"
+# Double-check no bad pathlib backport
+RUN python - << 'PY'
+import pathlib, pkgutil
+mods = [m.name for m in pkgutil.iter_modules()]
+print("Pathlib backport present?", "pathlib" in mods or "pathlib2" in mods)
+print("Using pathlib at:", getattr(pathlib, "__file__", "builtin"))
+PY
 
-# ---- 4) Copy project ----
+# ==========================================================
+# 4. Copy full project
+# ==========================================================
 COPY . .
 
-# Show which pathlib will be used (should print something like /usr/local/lib/python3.11/pathlib.py)
-RUN python -c "import pathlib, sys; print('USING PATHLIB:', getattr(pathlib,'__file__', 'built-in'))"
+# ==========================================================
+# 5. TRAIN ARTIFACTS INSIDE DOCKER
+#    This script must output:
+#    - normalization_scaler.joblib
+#    - calibrated_xgboost_bagging_model.pkl
+# ==========================================================
+RUN python train_model_and_scaler.py
 
-# ---- 5) Build the serving pipeline (.pkl) at build time ----
-# This will create saluSCORE_ped_pipeline.pkl inside the image
-RUN python -c "from build_serving_pipeline import main; main()"
+# ==========================================================
+# 6. BUILD SERVING PIPELINE
+#    This will create saluSCORE_ped_pipeline.pkl
+# ==========================================================
+RUN python - << 'PY'
+from build_serving_pipeline import main
+main()
+PY
 
-# ---- 6) Streamlit runtime ----
+# ==========================================================
+# 7. Streamlit Runtime Config
+# ==========================================================
 ENV PORT=8080
 ENV STREAMLIT_SERVER_PORT=$PORT
 ENV STREAMLIT_SERVER_HEADLESS=true
 ENV STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
 
 EXPOSE 8080
+
 CMD ["streamlit", "run", "app.py"]
