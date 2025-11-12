@@ -361,6 +361,75 @@ def render_footer():
     )
 
 
+def render_results(proba, shap_top, traditional, fig, schema):
+    import pandas as pd
+    DECISION_THRESHOLD = 0.1275
+
+    # Risk classification
+    label = 1 if proba >= DECISION_THRESHOLD else 0
+    label_text = "**High-risk**" if label == 1 else "**Not high-risk**"
+    (st.error if label == 1 else st.success)(f"Risk classification: {label_text}")
+    st.caption(f"Estimated risk probability: {proba*100:.2f}%, High-risk threshold: {DECISION_THRESHOLD*100:.2f}%.")
+
+    # Traditional Risk Scores (table with risk highlighting)
+    if isinstance(traditional, pd.Series) and not traditional.empty:
+        st.subheader("Traditional Risk Scores")
+        TRAD_THRESHOLDS = {"rachs": 3, "abc level": 3, "abc score": 7.78, "stmort category": 3, "stmort score": 0.5}
+        label_map = {
+            "rachs": "Risk Adjustment for Congenital Heart Surgery (RACHS-1)",
+            "abc level": "Aristotle Basic Complexity (ABC) Level",
+            "abc score": "Aristotle Basic Complexity (ABC) Score",
+            "stmort category": "STS-EACTS Mortality Category",
+            "stmort score": "STS-EACTS Mortality Score",
+        }
+        raw = traditional.copy()
+        display_vals = {}
+        for k in ("rachs", "abc level", "stmort category"):
+            if k in raw and pd.notnull(raw[k]): display_vals[k] = f"{int(round(raw[k]))}"
+        if "abc score" in raw and pd.notnull(raw["abc score"]): display_vals["abc score"] = f"{float(raw['abc score']):.1f}"
+        if "stmort score" in raw and pd.notnull(raw["stmort score"]): display_vals["stmort score"] = f"{float(raw['stmort score']):.1f}"
+        for k, v in raw.items(): display_vals.setdefault(k, v)
+
+        rows = []
+        for key, thr in TRAD_THRESHOLDS.items():
+            if key in raw and pd.notnull(raw[key]):
+                val = float(raw[key])
+                risk = "High-risk" if val >= thr else "Not high-risk"
+                rows.append({"Score": label_map.get(key, key), "Value": display_vals.get(key, val), "Risk": risk})
+
+        trad_df = pd.DataFrame(rows, columns=["Score", "Value", "Risk"]).rename(
+            columns={"Score": "Score (Based on Planned Surgery)"}
+        )
+
+        def risk_style(cell):
+            s = str(cell).lower()
+            return ("background-color:#FDECEA;color:#7A0C2E;font-weight:600;" if s == "high-risk"
+                    else "background-color:#ECFDF5;color:#065F46;font-weight:600;")
+
+        styled = trad_df.style.applymap(risk_style, subset=["Risk"]).hide(axis="index")
+        st.table(styled)
+        st.caption("High-risk thresholds used: RACHS-1 ≥ 3, ABC Level ≥ 3, ABC Score ≥ 7.78, "
+                   "STS-EACTS Mortality Category ≥ 3, STS-EACTS Mortality Score ≥ 0.5.")
+
+    # SHAP figure or (fallback) table
+    if fig is not None:
+        st.subheader("Top Factors Influencing the Risk Estimate")
+        st.pyplot(fig, clear_figure=True)
+        st.markdown(
+            "Red bars push the prediction towards higher risk. Blue bars push the prediction towards lower risk. "
+            "The longer the bar, the stronger the effect. Feature labels indicate the patient's input values."
+        )
+    elif shap_top is not None:
+        st.subheader("Top Factors Influencing the Risk Estimate")
+        fields = schema.get("fields", [])
+        name_to_label = {f["name"]: f.get("label", f["name"]) for f in fields}
+        shap_top_display = shap_top.copy()
+        shap_top_display.index = [name_to_label.get(feat, feat) for feat in shap_top_display.index]
+        shap_top_display = shap_top_display.fillna("")
+        st.dataframe(shap_top_display)
+
+
+
 # ------------------------- PAGES -------------------------
 
 def show_calculator():
@@ -419,6 +488,22 @@ def show_calculator():
             scrolling=False
         )
 
+
+    # --- Results-only view: if results are in session, skip the form (hides Analyze buttons) ---
+    if st.session_state.get("analysis_done") and "result_payload" in st.session_state:
+        proba, shap_top, traditional, fig = st.session_state["result_payload"]
+        render_results(proba, shap_top, traditional, fig, schema)
+
+        st.divider()
+        if st.button("New Analysis", type="primary"):
+            st.session_state.pop("analysis_done", None)
+            st.session_state.pop("result_payload", None)
+            st.rerun()
+
+        render_footer()
+        return
+
+
     # Build form
     row = build_user_form(schema)
     if row is None:
@@ -440,71 +525,10 @@ def show_calculator():
         traditional = pd.Series(dtype=float)
         fig = None
 
-    # Risk classification
-    label = 1 if proba >= DECISION_THRESHOLD else 0
-    label_text = "**High-risk**" if label == 1 else "**Not high-risk**"
-    (st.error if label == 1 else st.success)(f"Risk classification: {label_text}")
-    st.caption(f"Estimated risk probability: {proba*100:.2f}%, High-risk threshold: {DECISION_THRESHOLD*100:.2f}%.")
-
-    # Traditional Risk Scores table
-    if isinstance(traditional, pd.Series) and not traditional.empty:
-        st.subheader("Traditional Risk Scores")
-        TRAD_THRESHOLDS = {"rachs": 3, "abc level": 3, "abc score": 7.78, "stmort category": 3, "stmort score": 0.5}
-        label_map = {
-            "rachs": "Risk Adjustment for Congenital Heart Surgery (RACHS-1)",
-            "abc level": "Aristotle Basic Complexity (ABC) Level",
-            "abc score": "Aristotle Basic Complexity (ABC) Score",
-            "stmort category": "STS-EACTS Mortality Category",
-            "stmort score": "STS-EACTS Mortality Score",
-        }
-        raw = traditional.copy()
-        display_vals = {}
-        for k in ("rachs", "abc level", "stmort category"):
-            if k in raw and pd.notnull(raw[k]): display_vals[k] = f"{int(round(raw[k]))}"
-        if "abc score" in raw and pd.notnull(raw["abc score"]): display_vals["abc score"] = f"{float(raw['abc score']):.1f}"
-        if "stmort score" in raw and pd.notnull(raw["stmort score"]): display_vals["stmort score"] = f"{float(raw['stmort score']):.1f}"
-        for k, v in raw.items(): display_vals.setdefault(k, v)
-
-        rows = []
-        for key, thr in TRAD_THRESHOLDS.items():
-            if key in raw and pd.notnull(raw[key]):
-                val = float(raw[key])
-                risk = "High-risk" if val >= thr else "Not high-risk"
-                rows.append({"Score": label_map.get(key, key), "Value": display_vals.get(key, val), "Risk": risk})
-
-        trad_df = pd.DataFrame(rows, columns=["Score", "Value", "Risk"])
-        trad_df = trad_df.rename(columns={"Score": "Score (Based on Planned Surgery)"})
-
-        def risk_style(cell):
-            s = str(cell).lower()
-            return ("background-color:#FDECEA;color:#7A0C2E;font-weight:600;" if s == "high-risk"
-                    else "background-color:#ECFDF5;color:#065F46;font-weight:600;")
-
-        styled = trad_df.style.applymap(risk_style, subset=["Risk"]).hide(axis="index")
-        st.table(styled)
-        st.caption("High-risk thresholds used: RACHS-1 ≥ 3, ABC Level ≥ 3, ABC Score ≥ 7.78, "
-                   "STS-EACTS Mortality Category ≥ 3, STS-EACTS Mortality Score ≥ 0.5.")
-
-    # SHAP
-    if fig is not None:
-        st.subheader("Top Factors Influencing the Risk Estimate")
-        st.pyplot(fig, clear_figure=True)
-        st.markdown(
-            """
-            Red bars push the prediction towards higher risk. Blue bars push the prediction towards lower risk. The longer the bar, the stronger the effect. Feature labels indicate the patient's input values. Missing optional values were imputed.
-            """
-        )
-
-    elif shap_top is not None:
-        st.subheader("Top Factors Influencing the Risk Estimate")
-        fields = schema.get("fields", [])
-        name_to_label = {f["name"]: f.get("label", f["name"]) for f in fields}
-        shap_top_display = shap_top.copy()
-        shap_top_display.index = [name_to_label.get(feat, feat) for feat in shap_top_display.index]
-        shap_top_display = shap_top_display.fillna("")  # no "(imputed)" text
-        st.dataframe(shap_top_display)
-
-    render_footer()
+    # Save to session and rerun into results-only view
+    st.session_state["result_payload"] = (proba, shap_top, traditional, fig)
+    st.session_state["analysis_done"] = True
+    st.rerun()
 
 
 def show_about():
@@ -531,6 +555,10 @@ The model outperformed traditional scores, which showed area under the receiver 
     """)
 
     if st.button("Back to App", type="primary"):
+        # reset analysis state so the form (and Analyze button) return cleanly
+        for k in ("analysis_done", "result_payload", "analysis_intent", "show_missing_prompt"):
+            st.session_state.pop(k, None)
+
         st.session_state["page"] = "calculator"
         st.rerun()
 
