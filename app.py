@@ -1,9 +1,19 @@
+from pathlib import Path
+import streamlit as st
+
+# Tab title + favicon
+st.set_page_config(
+    page_title="SaluSCORE",          # text in the browser tab
+    page_icon=str(Path(__file__).with_name("favicon.png")), # PNG/ICO/SVG in your repo
+    layout="centered"
+)
+
+
 import json
 import joblib
 import pandas as pd
-import streamlit as st
-from pathlib import Path
 import streamlit.components.v1 as components
+
 
 # --- Preflight: ensure stdlib pathlib is used (not a backport or local package) ---
 import pathlib, sys
