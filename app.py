@@ -482,18 +482,19 @@ def show_calculator():
         )
 
 
-    # --- Results-only view: if results are in session, skip the form (hides Analyze buttons) ---
+    # --- Results-only view: if results are in session, skip the form (no New Analysis button) ---
     if st.session_state.get("analysis_done") and "result_payload" in st.session_state:
         proba, shap_top, traditional, fig = st.session_state["result_payload"]
         render_results(proba, shap_top, traditional, fig, schema)
 
-        if st.button("New Analysis", type="primary"):
-            st.session_state.pop("analysis_done", None)
-            st.session_state.pop("result_payload", None)
-            st.rerun()
+        # Hint to the user about how to repeat
+        st.info(
+            "To analyze another case, please reload the page."
+        )
 
         render_footer()
         return
+
 
 
     # Build form
