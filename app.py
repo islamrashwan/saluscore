@@ -52,60 +52,35 @@ def disclaimer_gate(disclaimer_brief: str,
                     version="v0.1",
                     log_to_csv=False) -> bool:
     """
-    Show brief terms first; on 'Read Full Terms of Use' swap to full text.
-    Block app until 'I Accept and Proceed' is pressed, then hide permanently.
+    Show brief terms in an expander and block the app until
+    'I Accept and Proceed' is pressed. Once accepted, hide permanently.
     """
-    st.markdown("""
-    <style>
-    /* Make the secondary button inside the expander look like a bold underlined link */
-    div[data-testid="stExpander"] div[data-testid="stButton"] > button[kind="secondary"] {
-        background: transparent !important;
-        color: #1f6feb !important;
-        border: none !important;
-        padding: 0 !important;
-        box-shadow: none !important;
-        text-decoration: underline !important;
-        font-weight: 600 !important;
-        cursor: pointer !important;
-    }
-    div[data-testid="stExpander"] { background-color: var(--secondaryBackgroundColor); border: 1px solid #CBD5E1; border-radius: 8px; margin-top: 12px; }
-    div[data-testid="stExpander"] > details > summary { background-color: var(--secondaryBackgroundColor); padding: 10px 14px; border-radius: 8px 8px 0 0; }
-    div[data-testid="stExpander"] > details > div[role="group"] { background-color: var(--secondaryBackgroundColor); padding: 14px; border-top: 1px solid #CBD5E1; border-radius: 0 0 8px 8px; }
-    div[data-testid="stExpander"] summary p { color: #3A4556 !important; font-weight: 600; margin: 0; }
-    .disclaimer-text { font-size: 15px; color: #3A4556; margin-top: 6px; line-height: 1.5; }
-    @media (max-width: 600px) { button[kind="primary"] { width: 100% !important; } .disclaimer-text { font-size: 14px !important; } }
-    </style>
-    """, unsafe_allow_html=True)
-
+    # If already accepted, do nothing
     if st.session_state.get("accepted_disclaimer", False):
         return True
-
-    st.session_state.setdefault("show_full_terms", False)
 
     def _accept():
         st.session_state["accepted_disclaimer"] = True
         st.session_state["_scroll_to_form_top_once"] = True
 
-    def _show_full():
-        st.session_state["show_full_terms"] = True
-
     with st.expander("Terms of Use", expanded=True):
-        text_to_show = disclaimer_full if st.session_state["show_full_terms"] else disclaimer_brief
-        st.markdown(text_to_show)
-        if not st.session_state["show_full_terms"]:
-            st.button("Read Full Terms of Use", key="btn_read_full", on_click=_show_full)
+        # Only show the brief text now (no "Read full terms" link)
+        st.markdown(disclaimer_brief)
         st.button("I Accept and Proceed", key="btn_accept", type="primary", on_click=_accept)
 
+    # Small footer under the terms box
     st.markdown(
-        """
+        f"""
         <div style='text-align: center; font-size: 0.8em; color: #888; margin-top: 2em;'>
-            © 2025 SaluSCORE™ Project Team. All rights reserved.<br>
-            Contact: <a href="mailto:isl.moh.ali@gmail.com">isl.moh.ali@gmail.com</a>
+            © 2025 {owner}. All rights reserved.<br>
+            Contact: <a href="mailto:isl.moh.ali@gmail.com">isl.moh.ali@gmail.com</a><br>
+            Version: {version}
         </div>
         """,
         unsafe_allow_html=True
     )
 
+    # Block the rest of the app until accepted
     if not st.session_state.get("accepted_disclaimer", False):
         st.stop()
     return True
@@ -350,6 +325,31 @@ def build_user_form(schema: dict):
 
 
 def render_footer():
+    # About / summary section
+    st.markdown(
+        """
+        ---
+        ### About SaluSCORE
+
+        **Why SaluSCORE?**  
+        The name comes from *Salus*, Latin for “good health,” reflecting the goal of improving outcomes in congenital heart surgery through responsible use of artificial intelligence.
+
+        **What the App Does**  
+        SaluSCORE-PED™ is a pilot research tool that estimates in-hospital mortality risk for pediatric congenital cardiac surgery using preoperative demographics, labs and planned procedures.  
+        It uses a tuned, calibrated Bagged XGBoost model and Shapley explanations to show which features most influence each prediction.
+
+        **Study Highlights**  
+        The model was developed on a multicenter cohort in Egypt (566 patients; 80% training, 20% internal test) and externally validated on another 114 patients.  
+        Because of the modest sample size, results should be interpreted as preliminary.  
+        Traditional scores achieved area under the ROC curve (AUC) values of 0.60–0.76, while the Bagged XGBoost model achieved 0.82 internally and 0.88 externally, with good calibration (Brier score 0.08).
+
+        **Release v0.1 — 4 September 2025**  
+        Initial pilot prototype; supports binary risk classification.
+        """,
+        unsafe_allow_html=False,
+    )
+
+    # Copyright / contact
     st.markdown(
         """
         <div style='text-align: center; font-size: 0.8em; color: #888; margin-top: 2em;'>
@@ -433,7 +433,7 @@ def render_results(proba, shap_top, traditional, fig, schema):
 # ------------------------- PAGES -------------------------
 
 def show_calculator():
-    """Calculator page: header, Learn More button, disclaimer gate, form, prediction, SHAP, footer."""
+    """Calculator page: header, disclaimer gate, form, prediction, SHAP, footer."""
     schema = load_schema()
     app_meta = schema.get("app", {})
 
@@ -447,11 +447,6 @@ def show_calculator():
         "</p>",
         unsafe_allow_html=True
     )
-
-    # Learn More (secondary) → About page
-    if st.button("Learn More", type="secondary"):
-        st.session_state["page"] = "about"
-        st.rerun()
 
     # Terms (gate the calculator only)
     disclaimer_brief = (
@@ -531,55 +526,14 @@ def show_calculator():
     st.rerun()
 
 
-def show_about():
-    """About page content and back button."""
-    st.title("Learn More")
-
-    st.markdown("""
-### Why SaluSCORE? 
-The name is derived from the Latin word Salus, which denotes good health. This reflects our mission to improve outcomes in congenital heart surgery by harnessing artificial intelligence responsibly.
-
----
-### What the App Does?
-SaluSCORE-PED™ is a pilot research prototype that uses preoperative demographics, labs and planned procedures to estimate in-hospital mortality risk after congenital cardiac surgery in pediatric patients.  
-It currently provides a binary classification using a tuned, calibrated Bagged Extreme Gradient Boosting (XGBoost) model, with Shapley Additive Explanations to show which features most influenced the result.
-
----
-### Study Highlights
-This pilot exploratory study evaluated the model on a multicenter cohort in Egypt (566 patients), using 80% (452 patients) for training and 20% (114 patients) for internal testing, and further validated it on an external cohort (114 patients). Given the relatively small sample size, these findings should be interpreted as preliminary.
-The model outperformed traditional scores, which showed area under the receiver operating characteristic curve values in the range of of 0.60-0.76, whereas the Bagged XGBoost model achieved 0.82 internally and 0.88 externally, with good calibration, Brier score 0.08.
-
----
-### Releases
-- **Release v0.1: 4 September, 2025**: Initial pilot prototype; supports binary risk classification.
-    """)
-
-    if st.button("Back to App", type="primary"):
-        # reset analysis state so the form (and Analyze button) return cleanly
-        for k in ("analysis_done", "result_payload", "analysis_intent", "show_missing_prompt"):
-            st.session_state.pop(k, None)
-
-        st.session_state["page"] = "calculator"
-        st.rerun()
-
-    render_footer()
-
-
 # ------------------------- ROUTER -------------------------
 
 def main():
     # TOP anchor (used for scroll jump after accepting terms)
     st.markdown("<div id='page-top'></div>", unsafe_allow_html=True)
 
-    # Init page
-    if "page" not in st.session_state:
-        st.session_state["page"] = "calculator"
-
-    # Route
-    if st.session_state["page"] == "about":
-        show_about()
-    else:
-        show_calculator()
+    # Just show the calculator page
+    show_calculator()
 
 
 if __name__ == "__main__":
