@@ -72,9 +72,8 @@ def disclaimer_gate(disclaimer_brief: str,
     st.markdown(
         f"""
         <div style='text-align: center; font-size: 0.8em; color: #888; margin-top: 2em;'>
-            © 2025 {owner}. All rights reserved.<br>
+            © 2025 {owner}. All rights reserved. <br>
             Contact: <a href="mailto:isl.moh.ali@gmail.com">isl.moh.ali@gmail.com</a><br>
-            Version: {version}
         </div>
         """,
         unsafe_allow_html=True
@@ -332,16 +331,15 @@ def render_footer():
         ### About SaluSCORE
 
         **Why SaluSCORE?**  
-        The name comes from *Salus*, Latin for “good health,” reflecting the goal of improving outcomes in congenital heart surgery through responsible use of artificial intelligence.
+        The name is derived from the Latin word Salus, which denotes good health. This reflects our mission to improve outcomes in congenital heart surgery by harnessing artificial intelligence responsibly.
 
         **What the App Does**  
-        SaluSCORE-PED™ is a pilot research tool that estimates in-hospital mortality risk for pediatric congenital cardiac surgery using preoperative demographics, labs and planned procedures.  
-        It uses a tuned, calibrated Bagged XGBoost model and Shapley explanations to show which features most influence each prediction.
+        SaluSCORE-PED™ is a pilot research prototype that uses preoperative demographics, labs and planned procedures to estimate in-hospital mortality risk after congenital cardiac surgery in pediatric patients.  
+        It currently provides a binary classification using a tuned, calibrated Bagged Extreme Gradient Boosting (XGBoost) model, with Shapley Additive Explanations to show which features most influenced the result.
 
         **Study Highlights**  
-        The model was developed on a multicenter cohort in Egypt (566 patients; 80% training, 20% internal test) and externally validated on another 114 patients.  
-        Because of the modest sample size, results should be interpreted as preliminary.  
-        Traditional scores achieved area under the ROC curve (AUC) values of 0.60–0.76, while the Bagged XGBoost model achieved 0.82 internally and 0.88 externally, with good calibration (Brier score 0.08).
+        This pilot exploratory study evaluated the model on a multicenter cohort in Egypt (566 patients), using 80% (452 patients) for training and 20% (114 patients) for internal testing, and further validated it on an external cohort (114 patients). Given the relatively small sample size, these findings should be interpreted as preliminary.
+        The model outperformed traditional scores, which showed area under the receiver operating characteristic curve values in the range of of 0.60-0.76, whereas the Bagged XGBoost model achieved 0.82 internally and 0.88 externally, with good calibration, Brier score 0.08.
 
         **Release v0.1 — 4 September 2025**  
         Initial pilot prototype; supports binary risk classification.
@@ -489,7 +487,6 @@ def show_calculator():
         proba, shap_top, traditional, fig = st.session_state["result_payload"]
         render_results(proba, shap_top, traditional, fig, schema)
 
-        st.divider()
         if st.button("New Analysis", type="primary"):
             st.session_state.pop("analysis_done", None)
             st.session_state.pop("result_payload", None)
