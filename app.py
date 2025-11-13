@@ -46,6 +46,24 @@ def load_pipeline():
     return joblib.load(PIPELINE_PATH)
 
 
+def run_prediction(row: pd.DataFrame):
+    """Run the model and return (proba, shap_top, traditional, fig)."""
+    if HAS_HELPER:
+        result = predict_proba_and_shap(row, max_display=10)
+        if len(result) == 4:
+            # (proba, shap_top, traditional, fig)
+            return result
+        else:
+            # older helper: (proba, shap_top, traditional)
+            proba, shap_top, traditional = result
+            return proba, shap_top, traditional, None
+    else:
+        pipe = load_pipeline()
+        proba = float(pipe.predict_proba(row)[:, 1])
+        # no SHAP / traditional scores in this fallback
+        return proba, None, pd.Series(dtype=float), None
+
+
 def disclaimer_gate(disclaimer_brief: str,
                     disclaimer_full: str,
                     owner="SaluSCORE™ Project Team",
@@ -488,20 +506,11 @@ def show_calculator():
         render_footer()
         return
 
+
     # Predict once the form is valid & submitted
-    if HAS_HELPER:
-        result = predict_proba_and_shap(row, max_display=10)
-        if len(result) == 4:
-            proba, shap_top, traditional, fig = result
-        else:
-            proba, shap_top, traditional = result
-            fig = None
-    else:
-        pipe = load_pipeline()
-        proba = float(pipe.predict_proba(row)[:, 1])
-        shap_top = None
-        traditional = pd.Series(dtype=float)
-        fig = None
+    with st.spinner("Analyzing… Please wait"):
+        proba, shap_top, traditional, fig = run_prediction(row)
+
 
     # Show results immediately (no st.rerun, no session_state storage)
     render_results(proba, shap_top, traditional, fig, schema)
