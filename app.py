@@ -481,29 +481,14 @@ def show_calculator():
             scrolling=False
         )
 
-
-    # --- Results-only view: if results are in session, skip the form (no New Analysis button) ---
-    if st.session_state.get("analysis_done") and "result_payload" in st.session_state:
-        proba, shap_top, traditional, fig = st.session_state["result_payload"]
-        render_results(proba, shap_top, traditional, fig, schema)
-
-        # Hint to the user about how to repeat
-        st.info(
-            "To analyze another case, please reload the page."
-        )
-
-        render_footer()
-        return
-
-
-
-    # Build form
+    # ---------------- FORM + PREDICTION IN ONE RUN ----------------
     row = build_user_form(schema)
     if row is None:
+        # either not submitted yet, or validation / surgery selection not satisfied
         render_footer()
         return
 
-    # Predict
+    # Predict once the form is valid & submitted
     if HAS_HELPER:
         result = predict_proba_and_shap(row, max_display=10)
         if len(result) == 4:
@@ -518,10 +503,13 @@ def show_calculator():
         traditional = pd.Series(dtype=float)
         fig = None
 
-    # Save to session and rerun into results-only view
-    st.session_state["result_payload"] = (proba, shap_top, traditional, fig)
-    st.session_state["analysis_done"] = True
-    st.rerun()
+    # Show results immediately (no st.rerun, no session_state storage)
+    render_results(proba, shap_top, traditional, fig, schema)
+
+    # Let the user know they can change inputs and rerun
+    st.info("To analyze another case, change the inputs above and click **Analyze** again.")
+
+    render_footer()
 
 
 # ------------------------- ROUTER -------------------------
