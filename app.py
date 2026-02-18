@@ -13,7 +13,10 @@ import json
 import joblib
 import pandas as pd
 import streamlit.components.v1 as components
+from pathlib import Path
 
+# Detect repository root safely in cloud environments
+BASE_DIR = Path(__file__).resolve().parent
 
 # --- Preflight: ensure stdlib pathlib is used (not a backport or local package) ---
 import pathlib, sys
@@ -31,8 +34,8 @@ try:
 except Exception:
     HAS_HELPER = False
 
-SCHEMA_PATH = "feature_schema.json"
-PIPELINE_PATH = "saluSCORE_ped_pipeline.pkl"
+SCHEMA_PATH = BASE_DIR / "feature_schema.json"
+PIPELINE_PATH = BASE_DIR / "saluSCORE_ped_pipeline.pkl"
 
 
 @st.cache_resource

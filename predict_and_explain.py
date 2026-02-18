@@ -18,7 +18,12 @@ from salu_pipeline_components import (
     SurgeryDeriver, BinaryEncoder, IterativeImputerWrapper,
     RoundingTransformer, PreFittedScaler, ColumnOrderEnforcer
 )
-    
+
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent
+PIPELINE_PKL = BASE_DIR / "saluSCORE_ped_pipeline.pkl"
+SCHEMA_JSON = BASE_DIR / "feature_schema.json"    
 
 PIPELINE_PKL = "saluSCORE_ped_pipeline.pkl"
 
@@ -145,7 +150,7 @@ def predict_proba_and_shap(row: pd.DataFrame, max_display=10):
     from sklearn.calibration import CalibratedClassifierCV
     import joblib
 
-    pipe = joblib.load("saluSCORE_ped_pipeline.pkl")
+    pipe = joblib.load(PIPELINE_PKL)
 
     # Unpack steps so we can capture de-normalized values for display
     derive   = pipe.named_steps["derive"]
@@ -241,7 +246,7 @@ def predict_proba_and_shap(row: pd.DataFrame, max_display=10):
 
     # --- 5) SHAP bar figure: single value; "(imputed)" drawn in grey next to the value ---
     # map internal names -> human labels
-    with open("feature_schema.json", "r", encoding="utf-8") as f:
+    with open(SCHEMA_JSON, "r", encoding="utf-8") as f:
         schema_json = json.load(f)
     name_to_label = {fld["name"]: fld.get("label", fld["name"]) for fld in schema_json.get("fields", [])}
 
