@@ -14,6 +14,16 @@ import joblib
 import pandas as pd
 import streamlit.components.v1 as components
 from pathlib import Path
+import requests
+
+MODEL_URL = "https://drive.google.com/uc?export=download&id=17UKnbrMYmIjX2pzabBUNFMZW71I4XN6y"
+
+def download_model_if_needed():
+    if not PIPELINE_PATH.exists():
+        with st.spinner("Downloading ML model... (first run only)"):
+            r = requests.get(MODEL_URL)
+            with open(PIPELINE_PATH, "wb") as f:
+                f.write(r.content)
 
 # Detect repository root safely in cloud environments
 BASE_DIR = Path(__file__).resolve().parent
@@ -46,6 +56,7 @@ def load_schema():
 
 @st.cache_resource
 def load_pipeline():
+    download_model_if_needed()
     return joblib.load(PIPELINE_PATH)
 
 

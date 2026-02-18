@@ -25,8 +25,6 @@ BASE_DIR = Path(__file__).resolve().parent
 PIPELINE_PKL = BASE_DIR / "saluSCORE_ped_pipeline.pkl"
 SCHEMA_JSON = BASE_DIR / "feature_schema.json"    
 
-PIPELINE_PKL = "saluSCORE_ped_pipeline.pkl"
-
 def get_imputed_raw_values(pipe: Pipeline, row: pd.DataFrame,
                            numeric_block_names=("num", "numeric", "numerical"),
                            imputer_step_name="imputer") -> dict:
