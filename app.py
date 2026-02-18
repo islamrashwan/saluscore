@@ -90,8 +90,8 @@ def disclaimer_gate(disclaimer_brief: str,
     st.markdown(
         f"""
         <div style='text-align: center; font-size: 0.8em; color: #888; margin-top: 2em;'>
-            © 2025 {owner}. All rights reserved. <br>
-            Contact: <a href="mailto:isl.moh.ali@gmail.com">isl.moh.ali@gmail.com</a><br>
+            © 2026 {owner}. All rights reserved. <br>
+            Contact: <a href="mailto:islam.rashwan.cs@gmail.com">islam.rashwan.cs@gmail.com</a><br>
         </div>
         """,
         unsafe_allow_html=True
@@ -369,8 +369,8 @@ def render_footer():
     st.markdown(
         """
         <div style='text-align: center; font-size: 0.8em; color: #888; margin-top: 2em;'>
-            © 2025 SaluSCORE™ Project Team. All rights reserved.<br>
-            Contact: <a href="mailto:isl.moh.ali@gmail.com">isl.moh.ali@gmail.com</a>
+            © 2026 SaluSCORE™ Project Team. All rights reserved.<br>
+            Contact: <a href="mailto:islam.rashwan.cs@gmail.com">islam.rashwan.cs@gmail.com</a>
         </div>
         """,
         unsafe_allow_html=True
