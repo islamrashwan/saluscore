@@ -16,7 +16,7 @@ import streamlit.components.v1 as components
 from pathlib import Path
 import requests
 
-MODEL_URL = "https://drive.google.com/uc?export=download&id=17UKnbrMYmIjX2pzabBUNFMZW71I4XN6y"
+MODEL_URL = "https://drive.google.com/uc?export=download&id=1-MKiiMVuTgAcy23wvxBAwjLxzow2_nq7"
 
 def download_model_if_needed():
     if not PIPELINE_PATH.exists():
