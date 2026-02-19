@@ -18,8 +18,18 @@ from salu_pipeline_components import (
     SurgeryDeriver, BinaryEncoder, IterativeImputerWrapper,
     RoundingTransformer, PreFittedScaler, ColumnOrderEnforcer
 )
-
+import requests
 from pathlib import Path
+
+MODEL_URL = "https://drive.google.com/uc?export=download&id=17UKnbrMYmIjX2pzabBUNFMZW71I4XN6y"
+
+def download_model_if_needed():
+    if not Path(PIPELINE_PKL).exists():
+        print("Downloading model...")
+        r = requests.get(MODEL_URL)
+        with open(PIPELINE_PKL, "wb") as f:
+            f.write(r.content)
+        print("Model downloaded.")
 
 BASE_DIR = Path(__file__).resolve().parent
 PIPELINE_PKL = BASE_DIR / "saluSCORE_ped_pipeline.pkl"
@@ -148,6 +158,7 @@ def predict_proba_and_shap(row: pd.DataFrame, max_display=10):
     from sklearn.calibration import CalibratedClassifierCV
     import joblib
 
+    download_model_if_needed()
     pipe = joblib.load(PIPELINE_PKL)
 
     # Unpack steps so we can capture de-normalized values for display
