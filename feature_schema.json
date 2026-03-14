@@ -42,7 +42,7 @@
     "error_message": "This pilot study included patients with surgical VSD closure, as an isolated procedure or alongside more complex surgeries, please ensure you select a VSD closure option."
   },
   "lookups": {
-    "surgery_catalog_file": "Complexities_imputed.csv",
+    "surgery_catalog_file": "complexities_imputed.csv",
     "sheet": null,
     "columns": {
       "key_surgery_name": "surgery",
