@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0.0",
   "app": {
-    "title": "SaluSCORE-PED™ v0.1",
+    "title": "SaluSCORE-PED v0.1",
     "disclaimer": "For research and educational use only. Not for clinical decision-making.",
     "units_note": "All inputs must match units."
   },

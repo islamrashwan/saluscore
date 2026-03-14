@@ -16,25 +16,40 @@ class SurgeryDeriver(BaseEstimator, TransformerMixin):
     Aggregation = max for numeric scores; flags = 1 if present else 0.
     """
     def __init__(self, lookup_path: Path,
-                 score_cols=("rachs","abc level","abc score","stmort category","stmort score"),
-                 flag_surgeries=("cavc repair","rv infundibulectomy","tof rv to pa conduit")):
+                 score_cols=("rachs", "abc level", "abc score", "stmort category", "stmort score"),
+                 flag_surgeries=("cavc repair", "rv infundibulectomy", "tof rv to pa conduit")):
         self.lookup_path = Path(lookup_path)
         self.score_cols = list(score_cols)
         self.flag_surgeries = list(flag_surgeries)
         self._map: Optional[pd.DataFrame] = None
 
-    def fit(self, X: pd.DataFrame, y=None):
+    def _load_lookup_map(self):
+        if self._map is not None:
+            return
+
+        if not self.lookup_path.exists():
+            raise FileNotFoundError(
+                f"Surgery lookup CSV not found at: {self.lookup_path}"
+            )
+
         df = pd.read_csv(self.lookup_path)
         need = ["surgery", *self.score_cols]
         missing = [c for c in need if c not in df.columns]
         if missing:
             raise ValueError(f"Lookup CSV missing columns: {missing}")
+
         df["surgery_norm"] = df["surgery"].astype(str).str.strip().str.lower()
         self._map = df.set_index("surgery_norm")[list(self.score_cols)]
+
+    def fit(self, X: pd.DataFrame, y=None):
+        self._load_lookup_map()
         return self
 
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
         import re
+
+        self._load_lookup_map()
+
         X = X.copy()
         re_split = re.compile(r"[;,|]+")
 
@@ -46,7 +61,11 @@ class SurgeryDeriver(BaseEstimator, TransformerMixin):
             parts = [p.strip().lower() for p in re_split.split(str(val)) if p.strip()]
             return parts
 
-        selected_lists = X["surgery"].apply(parse_sel) if "surgery" in X.columns else pd.Series([[]]*len(X), index=X.index)
+        selected_lists = (
+            X["surgery"].apply(parse_sel)
+            if "surgery" in X.columns
+            else pd.Series([[]] * len(X), index=X.index)
+        )
 
         # Aggregate max for each score column
         for col in self.score_cols:
@@ -69,9 +88,10 @@ class SurgeryDeriver(BaseEstimator, TransformerMixin):
             key = flag.strip().lower()
             X[flag] = selected_lists.apply(lambda sels: 1 if key in sels else 0)
 
-        # Drop raw surgery column (model uses derived fields)
+        # Drop raw surgery column
         if "surgery" in X.columns:
             X = X.drop(columns=["surgery"])
+
         return X
 
 
@@ -161,44 +181,50 @@ class PreFittedScaler(BaseEstimator, TransformerMixin):
         self.scaler = scaler
 
     def fit(self, X, y=None):
-        # No fitting of the scaler here (it's already fitted).
-        # We just remember which columns we will attempt to scale later.
-        # Prefer the scaler's training-time feature names if available.
         self.scaler_feature_names_ = getattr(self.scaler, "feature_names_in_", None)
-        # Keep a record of numeric columns we typically see at inference (best-effort fallback)
         self.infer_numeric_cols_ = X.select_dtypes(include=[np.number]).columns.tolist()
         return self
 
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
         X = X.copy()
 
-        # Case A: scaler has feature name memory (best)
-        if self.scaler_feature_names_ is not None:
-            expected = list(self.scaler_feature_names_)
-            # Build X_aug with exactly the training-time columns
-            # Fill any missing columns with 0 (neutral for MinMax scaling range on [min,max]; the scaled value will be consistent)
+        # Safe fallback in case fitted attributes are missing after unpickling
+        scaler_feature_names = getattr(
+            self,
+            "scaler_feature_names_",
+            getattr(self.scaler, "feature_names_in_", None)
+        )
+        infer_numeric_cols = getattr(
+            self,
+            "infer_numeric_cols_",
+            X.select_dtypes(include=[np.number]).columns.tolist()
+        )
+
+        # Case A: scaler has training-time feature names
+        if scaler_feature_names is not None:
+            expected = list(scaler_feature_names)
+
             X_aug = pd.DataFrame(
                 {col: (X[col] if col in X.columns else 0.0) for col in expected},
                 index=X.index
             )
-            # Ensure numeric dtype
+
             for c in expected:
                 X_aug[c] = pd.to_numeric(X_aug[c], errors="coerce")
 
-            scaled = self.scaler.transform(X_aug)  # ndarray
+            scaled = self.scaler.transform(X_aug)
             scaled_df = pd.DataFrame(scaled, columns=expected, index=X.index)
 
-            # Copy back scaled values for the intersection columns present in X
             common = [c for c in expected if c in X.columns]
             if common:
                 X[common] = scaled_df[common]
-            # Columns present in X but not in expected are left untouched (no scaling was done at train-time)
             return X
 
-        # Case B: no feature names on scaler → transform whatever numeric columns we have
-        numeric_cols = [c for c in self.infer_numeric_cols_ if c in X.columns]
+        # Case B: no feature names on scaler → scale numeric columns present
+        numeric_cols = [c for c in infer_numeric_cols if c in X.columns]
         if numeric_cols:
             X[numeric_cols] = self.scaler.transform(X[numeric_cols])
+
         return X
 
 

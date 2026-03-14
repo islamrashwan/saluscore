@@ -21,7 +21,7 @@ from salu_pipeline_components import (
 import requests
 from pathlib import Path
 
-MODEL_URL = "https://drive.google.com/uc?export=download&id=17UKnbrMYmIjX2pzabBUNFMZW71I4XN6y"
+MODEL_URL = "https://drive.google.com/uc?export=download&id=1de0uPRcm_73qMTGIEPLwwlz9rxaRnaA0"
 
 def download_model_if_needed():
     if not Path(PIPELINE_PKL).exists():

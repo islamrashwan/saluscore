@@ -27,7 +27,7 @@ else:
    pathlib.WindowsPath = pathlib.PosixPath
 
 
-MODEL_URL = "https://drive.google.com/uc?export=download&id=11KZDXMwkpHr2ZutMrpWMOoTzmpyem-Nm"
+MODEL_URL = "https://drive.google.com/uc?export=download&id=1de0uPRcm_73qMTGIEPLwwlz9rxaRnaA0"
 
 def download_model_if_needed():
     if not PIPELINE_PATH.exists():
@@ -91,7 +91,7 @@ def run_prediction(row: pd.DataFrame):
 
 def disclaimer_gate(disclaimer_brief: str,
                     disclaimer_full: str,
-                    owner="SaluSCORE™ Project Team",
+                    owner="SaluSCORE Project Team",
                     version="v0.1",
                     log_to_csv=False) -> bool:
     """
@@ -115,7 +115,7 @@ def disclaimer_gate(disclaimer_brief: str,
     st.markdown(
         f"""
         <div style='text-align: center; font-size: 0.8em; color: #888; margin-top: 2em;'>
-            © 2026 {owner}. All rights reserved. <br>
+            © 2026 {owner}. <br>
             Contact: <a href="mailto:islam.rashwan.cs@gmail.com">islam.rashwan.cs@gmail.com</a><br>
         </div>
         """,
@@ -377,15 +377,15 @@ def render_footer():
         The name is derived from the Latin word Salus, which denotes good health. This reflects our mission to improve outcomes in congenital heart surgery by harnessing artificial intelligence responsibly.
 
         **What the App Does**  
-        SaluSCORE-PED™ is a pilot research prototype that uses preoperative demographics, labs and planned procedures to estimate in-hospital mortality risk after congenital cardiac surgery in pediatric patients.  
-        It currently provides a binary classification using a tuned, calibrated Bagged Extreme Gradient Boosting (XGBoost) model, with Shapley Additive Explanations to show which features most influenced the result.
+        SaluSCORE-PED is a pilot research prototype that uses preoperative demographics, labs and planned procedures to estimate in-hospital mortality risk after congenital cardiac surgery in pediatric patients.  
+        It currently provides a binary classification using a tuned, calibrated Bagged Extreme Gradient Boosting (XGBoost) model, with Shapley Additive Explanations to show which features most influenced the result, and is intended as a foundational framework for future model refinement and expansion.
 
         **Study Highlights**  
         This pilot exploratory study evaluated the model on a multicenter cohort in Egypt (566 patients), using 80% (452 patients) for training and 20% (114 patients) for internal testing, and further validated it on an external cohort (114 patients). Given the relatively small sample size, these findings should be interpreted as preliminary.
         The model outperformed traditional scores, which showed area under the receiver operating characteristic curve values in the range of of 0.60-0.76, whereas the Bagged XGBoost model achieved 0.82 internally and 0.88 externally, with good calibration, Brier score 0.08.
 
         **Release v0.1 — 4 September 2025**  
-        Initial pilot prototype; supports binary risk classification.
+        Initial research prototype supporting binary risk classification, forming the basis for future model refinement.
         """,
         unsafe_allow_html=False,
     )
@@ -394,7 +394,7 @@ def render_footer():
     st.markdown(
         """
         <div style='text-align: center; font-size: 0.8em; color: #888; margin-top: 2em;'>
-            © 2026 SaluSCORE™ Project Team. All rights reserved.<br>
+            © 2026 SaluSCORE Project Team.<br>
             Contact: <a href="mailto:islam.rashwan.cs@gmail.com">islam.rashwan.cs@gmail.com</a>
         </div>
         """,
@@ -479,27 +479,28 @@ def show_calculator():
     app_meta = schema.get("app", {})
 
     # Header
-    st.title(app_meta.get("title", "SaluSCORE-PED™ v0.1"))
+    st.title(app_meta.get("title", "SaluSCORE-PED v0.1"))
     st.markdown(
         "<p style='font-size:16px; color:#3A4556;'>"
         "A pilot research-only tool that uses artificial intelligence "
         "to classify in-hospital mortality risk after congenital heart "
-        "surgery from preoperative data."
+        "surgery from preoperative data, providing a foundational framework for future model development."
         "</p>",
         unsafe_allow_html=True
     )
 
     # Terms (gate the calculator only)
     disclaimer_brief = (
-        "This tool is a pilot prototype, provided as is, for research and educational purposes only. "
+        "This tool is a research prototype, provided as is, for research and educational purposes only. "
         "It must not be used for clinical decision-making or for any commercial purpose. "
         "Redistribution or modification is not permitted. By continuing, you accept full responsibility for your use of this tool."
     )
+    
     try:
         disclaimer_full = Path(__file__).with_name("terms.md").read_text(encoding="utf-8")
     except Exception:
         disclaimer_full = "Full Terms of Use not found."
-    disclaimer_gate(disclaimer_brief, disclaimer_full, owner="SaluSCORE™ Project Team", version="v0.1")
+    disclaimer_gate(disclaimer_brief, disclaimer_full, owner="SaluSCORE Project Team", version="v0.1")
 
     # Jump to top once after acceptance
     if st.session_state.pop("_scroll_to_form_top_once", False):
