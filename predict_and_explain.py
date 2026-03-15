@@ -185,7 +185,6 @@ def predict_proba_and_shap(row: pd.DataFrame, max_display=10):
     shap_model = _unwrap_for_shap(model)
 
     if isinstance(shap_model, BaggingClassifier):
-        # (same averaging logic you already have)
         shap_values_per_estimator = []
         expected_vals = []
         for i, est in enumerate(shap_model.estimators_):
